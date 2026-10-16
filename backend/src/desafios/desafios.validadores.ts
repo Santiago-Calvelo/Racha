@@ -34,14 +34,19 @@ export function validarDescripcion(descripcion: unknown): string | undefined {
   if (typeof descripcion !== 'string') {
     throw new BadRequestException('La descripción debe ser un texto');
   }
-  if (descripcion.trim() !== '' && descripcion.trim().length > DESCRIPCION_MAXIMA) {
+  if (
+    descripcion.trim() !== '' &&
+    descripcion.trim().length > DESCRIPCION_MAXIMA
+  ) {
     throw new BadRequestException('La descripción admite 280 caracteres');
   }
   return descripcion.trim() === '' ? undefined : descripcion.trim();
 }
 
 export function validarCategoria(categoria: unknown): CategoriaDesafio {
-  if (!Object.values(CategoriaDesafio).includes(categoria as CategoriaDesafio)) {
+  if (
+    !Object.values(CategoriaDesafio).includes(categoria as CategoriaDesafio)
+  ) {
     throw new BadRequestException(
       'La categoría debe ser SALUD, ESTUDIO, FINANZAS, BIENESTAR u OTRO',
     );
@@ -74,7 +79,11 @@ export function validarFechasYCupo(
     fechaInicio: string;
     fechaFin: string;
     maximoParticipantes: number;
-  } = { fechaInicio: '', fechaFin: '', maximoParticipantes: CUPO_PREDETERMINADO };
+  } = {
+    fechaInicio: '',
+    fechaFin: '',
+    maximoParticipantes: CUPO_PREDETERMINADO,
+  };
   if (entrada.nombre !== undefined) {
     resultado.nombre = validarNombre(entrada.nombre);
   }

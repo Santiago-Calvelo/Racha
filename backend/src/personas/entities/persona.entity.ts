@@ -34,7 +34,10 @@ export class Persona {
     trim: true,
     lowercase: true,
     unique: true,
-    match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'El email no tiene un formato válido'],
+    match: [
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      'El email no tiene un formato válido',
+    ],
   })
   email: string;
 
@@ -53,4 +56,3 @@ export class Persona {
 }
 
 export const PersonaEsquema = SchemaFactory.createForClass(Persona);
-

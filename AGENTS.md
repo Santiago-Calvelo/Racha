@@ -6,8 +6,10 @@
 - **Investigar antes de implementar.** Comprender el contexto, la arquitectura, las convenciones existentes y el problema real antes de modificar código.
 - **No asumir requisitos.** Si existen ambigüedades que puedan cambiar la solución, consultar al programador antes de continuar.
 - **Proponer antes de decidir.** Cuando existan varias soluciones razonables, explicar brevemente sus ventajas, desventajas, riesgos y costos. Recomendar una alternativa sin imponerla.
+- **Aprobación previa obligatoria.** Ningún agente puede modificar archivos, ejecutar cambios funcionales o aplicar una solución sin que el programador haya aprobado explícitamente la propuesta correspondiente. Una solicitud de cambio inicia la investigación y la propuesta; no autoriza por sí sola la implementación.
 - **Respetar el proyecto existente.** No introducir arquitecturas, patrones, dependencias o abstracciones nuevas sin una justificación concreta.
-- **Cambios mínimos y enfocados.** Evitar modificaciones ajenas al objetivo, refactorizaciones innecesarias y cambios de comportamiento no solicitados.
+- **Cambios mínimos y enfocados.** Aplicar la modificación más pequeña que resuelva el objetivo. Si puede resolverse en una línea, cambiar solo esa línea. No hacer reformateos, reindentaciones, reordenamientos ni ediciones masivas ajenas al objetivo.
+- **No duplicar trabajo en el diff.** No eliminar una línea para volver a insertar exactamente la misma línea, ni modificar espacios, saltos de línea o indentación sin una necesidad funcional explícita.
 - **No inventar resultados.** No afirmar que una funcionalidad funciona, que una prueba pasó o que un cambio fue verificado sin evidencia.
 
 ## 2. Flujo de trabajo obligatorio
@@ -24,25 +26,28 @@ Antes de implementar:
 
 No explorar archivos, módulos o historial sin una relación concreta con la tarea.
 
-### Fase 2: Propuesta
+### Fase 2: Propuesta y aprobación
 
-Antes de realizar cambios que impliquen decisiones de diseño o arquitectura:
+Antes de realizar cualquier cambio, incluso si la solicitud parece directa:
 
 1. Explicar brevemente el problema identificado.
 2. Presentar las alternativas relevantes.
-3. Recomendar una solución y justificarla.
-4. Indicar los archivos y componentes que probablemente se modificarán.
-5. Señalar los riesgos o las decisiones que requieren aprobación.
+3. Recomendar una solución y explicar qué beneficio aporta frente a las demás.
+4. Indicar exactamente qué archivos, componentes y ubicaciones se modificarán.
+5. Describir qué se hará en cada ubicación y cuál será el alcance mínimo.
+6. Señalar los riesgos o las decisiones que requieren aprobación.
+7. Esperar la aprobación explícita del programador antes de editar o implementar.
 
-Para tareas pequeñas, directas y sin ambigüedades, basta con una explicación breve. No convertir cada modificación trivial en un proceso burocrático.
+Para tareas pequeñas, directas y sin ambigüedades, la propuesta puede ser breve, pero debe indicar el archivo, la ubicación, el cambio y esperar aprobación. No convertir la investigación en cambios implícitos.
 
-**No implementar decisiones funcionales, arquitectónicas o de alcance ambiguo sin la aprobación del programador.** Si la tarea ya especifica claramente la solución y su alcance, proceder sin pedir confirmaciones redundantes.
+**No implementar ninguna decisión funcional, arquitectónica o de alcance sin aprobación explícita.** Si durante la implementación aparece información que cambia la propuesta aprobada, detenerse y presentar una nueva propuesta.
 
 ### Fase 3: Implementación
 
 Una vez definido el enfoque:
 
 - Implementar únicamente el alcance acordado.
+- No comenzar esta fase hasta contar con la aprobación explícita de la propuesta.
 - Seguir las convenciones, estructuras y patrones existentes.
 - Reutilizar código cuando sea apropiado, evitando duplicaciones innecesarias.
 - Mantener los cambios simples, legibles, mantenibles y verificables.
@@ -51,7 +56,7 @@ Una vez definido el enfoque:
 - No sobrescribir trabajo del programador ni descartar cambios preexistentes.
 - No ocultar errores mediante conversiones inseguras, supresión de excepciones o desactivación de validaciones.
 
-Si durante la implementación aparece información que invalida el enfoque acordado, detener los cambios afectados y presentar una nueva propuesta.
+Si durante la implementación aparece información que invalida el enfoque acordado, detener los cambios afectados, conservar intacto lo que no corresponda y presentar una nueva propuesta.
 
 ### Fase 4: Verificación
 
@@ -63,7 +68,7 @@ Al terminar:
 4. Informar qué se modificó, qué se verificó y qué queda pendiente.
 5. Declarar explícitamente cualquier prueba que no se haya podido ejecutar.
 
-No realizar refactorizaciones adicionales durante la verificación sin autorización.
+No realizar refactorizaciones, formateos ni cambios adicionales durante la verificación sin autorización específica.
 
 ## 3. Gestión de archivos y modularidad
 

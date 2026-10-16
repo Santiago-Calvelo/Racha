@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -19,6 +18,7 @@ import {
   calcularEstadoDesafio,
 } from '../desafios/entities/desafio.entity';
 import { Persona, PersonaDocumento } from '../personas/entities/persona.entity';
+import { verificarTopeVigentes } from '../comun/limite-desafios';
 
 @Injectable()
 export class ParticipacionesService {
@@ -36,15 +36,23 @@ export class ParticipacionesService {
    * Une una persona a un desafío vigente (programado o activo, sin
    * cancelar). El índice único { persona, desafio } impide reingresos:
    * quien abandonó conserva su documento y no puede volver. El cupo de
-   * activos se controla con actualización atómica dentro de la
-   * transacción: se cuenta y se inserta en la misma sesión.
+   * activos se controla escribiendo el desafío antes del conteo dentro
+   * de la transacción; el límite de vigentes se coordina por persona.
    */
-  async unirse(desafioId: string, dto: UnirseDesafioDto): Promise<Participacion> {
-    const desafio = await this.obtenerDesafio(desafioId);
+  async unirse(dto: UnirseDesafioDto): Promise<Participacion> {
     await this.obtenerPersona(dto.persona);
+    const desafio = await this.desafioModelo
+      .findOne({ codigoInvitacion: dto.codigoInvitacion })
+      .lean()
+      .exec();
+    if (!desafio) {
+      throw new NotFoundException(
+        'No existe un desafío con ese código de invitación',
+      );
+    }
     const estado = calcularEstadoDesafio(desafio);
     if (estado !== 'PROGRAMADO' && estado !== 'ACTIVO') {
-      throw new BadRequestException(
+      throw new ConflictException(
         'No es posible unirse a un desafío finalizado o cancelado',
       );
     }
@@ -52,6 +60,29 @@ export class ParticipacionesService {
     const sesion = await this.conexion.startSession();
     try {
       return await sesion.withTransaction(async () => {
+        const actual = await this.desafioModelo
+          .findOneAndUpdate(
+            { _id: desafio._id },
+            { $inc: { __v: 1 } },
+            { new: true, session: sesion },
+          )
+          .exec();
+        if (!actual) throw new NotFoundException('Desafío no encontrado');
+        const estadoActual = calcularEstadoDesafio(actual);
+        if (estadoActual !== 'PROGRAMADO' && estadoActual !== 'ACTIVO') {
+          throw new ConflictException(
+            'No es posible unirse a un desafío finalizado o cancelado',
+          );
+        }
+        await verificarTopeVigentes(
+          new Types.ObjectId(dto.persona),
+          {
+            personas: this.personaModelo,
+            desafios: this.desafioModelo,
+            participaciones: this.participacionModelo,
+          },
+          sesion,
+        );
         const activos = await this.participacionModelo.countDocuments(
           {
             desafio: desafio._id,
@@ -59,8 +90,8 @@ export class ParticipacionesService {
           },
           { session: sesion },
         );
-        if (activos >= desafio.maximoParticipantes) {
-          throw new ForbiddenException('El desafío alcanzó su cupo máximo');
+        if (activos >= actual.maximoParticipantes) {
+          throw new ConflictException('El desafío alcanzó su cupo máximo');
         }
         try {
           const creadas = await this.participacionModelo.create(
@@ -95,13 +126,12 @@ export class ParticipacionesService {
    * ABANDONADA. El creador no puede abandonar su propio desafío. Quien
    * abandonó no ocupa cupo activo ni aparece en el ranking.
    */
-  async abandonar(desafioId: string, personaId: string): Promise<Participacion> {
+  async abandonar(
+    desafioId: string,
+    personaId: string,
+  ): Promise<Participacion> {
     const desafio = await this.obtenerDesafio(desafioId);
-    if (String(desafio.creador) === personaId) {
-      throw new ForbiddenException(
-        'La persona creadora no puede abandonar su propio desafío',
-      );
-    }
+    await this.obtenerPersona(personaId);
     const participacion = await this.participacionModelo
       .findOne({
         persona: this.aObjectId(personaId),
@@ -112,6 +142,11 @@ export class ParticipacionesService {
     if (!participacion) {
       throw new NotFoundException(
         'No existe una participación activa de esta persona en el desafío',
+      );
+    }
+    if (String(desafio.creador) === personaId) {
+      throw new ForbiddenException(
+        'La persona creadora no puede abandonar su propio desafío',
       );
     }
     participacion.estado = EstadoParticipacion.ABANDONADA;
@@ -125,6 +160,7 @@ export class ParticipacionesService {
     const desafio = await this.obtenerDesafio(desafioId);
     return this.participacionModelo
       .find({ desafio: desafio._id, estado: EstadoParticipacion.ACTIVA })
+      .populate('persona', 'nombre alias email zonaHoraria')
       .lean()
       .exec();
   }

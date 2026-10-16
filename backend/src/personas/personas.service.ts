@@ -70,8 +70,8 @@ export class PersonasService {
 
     const datos = this.validar({
       nombre: updatePersonaDto.nombre ?? actual.nombre,
-      alias: updatePersonaDto.alias ?? actual.alias,
-      email: updatePersonaDto.email ?? actual.email,
+      alias: actual.alias,
+      email: actual.email,
       zonaHoraria: updatePersonaDto.zonaHoraria ?? actual.zonaHoraria,
     });
 
@@ -189,4 +189,3 @@ export class PersonasService {
     throw error instanceof Error ? error : new Error(String(error));
   }
 }
-

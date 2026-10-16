@@ -1,7 +1,7 @@
 import { PersonaEsquema } from '../personas/entities/persona.entity';
 import { DesafioEsquema } from '../desafios/entities/desafio.entity';
 import { ParticipacionEsquema } from '../participaciones/entities/participacion.entity';
-import { RegistroCumplimientoEsquema } from '../registros/entities/registro-cumplimiento.entity';
+import { CheckinEsquema } from '../checkin/entities/checkin.entity';
 
 /** Recolecta los índices declarados en un esquema (incluye `unique: true`). */
 function indicesDe(esquema: { indexes(): [object, object][] }): object[] {
@@ -44,14 +44,11 @@ describe('índices únicos', () => {
     });
   });
 
-  it('registros: índice único compuesto persona+desafio+dia', () => {
-    expect(coleccionDe(RegistroCumplimientoEsquema)).toBe(
-      'registros_cumplimiento',
-    );
-    expect(indicesDe(RegistroCumplimientoEsquema)).toContainEqual({
+  it('checkins: índice único compuesto persona+desafio+dia', () => {
+    expect(coleccionDe(CheckinEsquema)).toBe('registros_cumplimiento');
+    expect(indicesDe(CheckinEsquema)).toContainEqual({
       campos: { persona: 1, desafio: 1, dia: 1 },
       opciones: { unique: true },
     });
   });
 });
-

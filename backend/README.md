@@ -41,7 +41,7 @@ patrón estándar del CLI (`*.service.ts`, `*.controller.ts`, `*.module.ts`).
 - `registros_cumplimiento`: un documento por persona, desafío y día.
 
 Separarlas evita documentos gigantes que crecen sin control (un desafío
-con 20 participantes durante 90 días generaría miles de registros
+con 20 participantes durante 90 días generaría miles de checkins
 embebidos) y permite consultar historiales, rankings y participaciones
 con filtros específicos e índices propios.
 
@@ -50,14 +50,14 @@ con filtros específicos e índices propios.
 - Las participaciones se conservan como historial tras el abandono y el
   cupo activo no limita el historial: embeberlas mezclaría activos con
   históricos en el mismo documento.
-- Los registros crecen con el tiempo (uno por día y persona) y necesitan
+- Los checkins crecen con el tiempo (uno por día y persona) y necesitan
   su índice único `{ persona, desafio, dia }`: embebidos obligarían a
-  reescribir el desafío en cada registro.
+  reescribir el desafío en cada checkin.
 - Se evita duplicar los datos de la persona en cada desafío: las
   relaciones son `Desafio.creador → Persona`, `Participacion.persona →
   Persona`, `Participacion.desafio → Desafio`,
-  `RegistroCumplimiento.persona → Persona` y
-  `RegistroCumplimiento.desafio → Desafio`.
+  `Checkin.persona → Persona` y
+  `Checkin.desafio → Desafio`.
 
 ### 3. Por qué el día es texto `YYYY-MM-DD` y no `Date`
 
@@ -85,7 +85,7 @@ actualice al cambiar el día.
 - `participaciones { persona: 1, desafio: 1 }` único: impide el reingreso
   tras abandonar (el documento histórico permanece).
 - `registros_cumplimiento { persona: 1, desafio: 1, dia: 1 }` único:
-  impide dos registros del mismo día.
+  impide dos checkins del mismo día.
 - Índices secundarios justificados: `{ desafio, estado }` (cupo activo y
   ranking) y `{ desafio, dia }` (historial y ranking por día).
 
@@ -93,17 +93,23 @@ actualice al cambiar el día.
 
 Los índices no bastan; estas reglas viven en los servicios:
 
-- Tope de 5 desafíos vigentes por persona (conteo por aplicación; la
-  concurrencia exacta requeriría contadores atómicos).
-- Cupo de activos y tope de vigentes: conteo + inserción dentro de la
-  misma transacción (`withTransaction`).
+- Tope de 5 desafíos vigentes por persona: cuenta participaciones activas
+  en desafíos no cancelados cuya fecha de fin no pasó, incluidos los creados.
+- Crear y unirse incrementan `Persona.__v` dentro de la transacción antes
+  de contar, para coordinar solicitudes de una misma persona. La unión
+  también incrementa `Desafio.__v` antes de releer estado y cupo, contar e
+  insertar. Los conflictos transitorios reintentan la transacción completa.
+- La edición y cancelación usan concurrencia optimista de Mongoose: si
+  cambia la versión del desafío durante la operación, devuelven 409.
+  Esto evita guardar un cupo calculado antes de una unión concurrente.
+- Las transacciones requieren MongoDB con replica set, como MongoDB Atlas.
 - Colisiones de `codigoInvitacion`: reintento ante error de clave
   duplicada 11000, no consulta previa (ventana de carrera).
 - Unión solo a desafíos programados/activos; edición de fechas/cupos
   solo en programados; cupo nunca bajo activos; cancelación solo del
-  creador en programados/activos; el creador no abandona; registros solo
+  creador en programados/activos; el creador no abandona; checkins solo
   hoy/ayer dentro del intervalo y con participación activa; deshacer solo
-  el último registro propio del día actual.
+  el último checkin propio del día actual.
 
 ### 7. Configuración de `MONGODB_URI` sin publicar secretos
 
@@ -122,7 +128,7 @@ El estado global (`PROGRAMADO`/`ACTIVO`/`FINALIZADO`) y el "hoy" de las
 validaciones de fechas se calculan en `America/Argentina/Buenos_Aires`
 (`ZONA_HORARIA_REFERENCIA`, la misma que la zona por defecto). No cambia
 según cada participante: todos ven el mismo estado el mismo día de
-referencia. La zona individual solo determina el `dia` de cada registro
+referencia. La zona individual solo determina el `dia` de cada checkin
 de cumplimiento. El cambio de día sigue esa zona de referencia.
 
 ## Project setup
@@ -130,6 +136,42 @@ de cumplimiento. El cambio de día sigue esa zona de referencia.
 ```bash
 $ npm install
 ```
+
+## Datos de prueba
+
+Con `MONGODB_URI` configurada, el servidor espera la inicialización de los
+índices de los modelos y ejecuta la precarga antes de aceptar peticiones HTTP.
+También puede ejecutarse manualmente desde `backend/`:
+
+```bash
+npm run seed
+```
+
+El comando compila y ejecuta un script independiente, sin iniciar HTTP.
+Precarga las personas `seed_ana`, `seed_bruno` y `seed_carla`, y dos desafíos
+con códigos `DEMOA1` y `DEMOB2`, junto con la participación de sus creadores.
+Los desafíos nuevos duran siete días desde la ejecución. Las claves estables
+y `$setOnInsert` permiten repetirlo sin duplicar ni sobrescribir los datos.
+La precarga se espera en cada arranque; si falla, el servidor no empieza a escuchar.
+
+## Consultas y contratos HTTP
+
+- `GET /desafios`: sin body devuelve todos; acepta un body JSON opcional
+  con `estado` y/o `categoria`, por ejemplo `{"estado":"ACTIVO","categoria":"SALUD"}`.
+- `GET /desafios/persona/:personaId`: desafíos asociados a las participaciones
+  de la persona, incluidas las históricas.
+- `POST /participaciones`: recibe `{"persona":"<id>","codigoInvitacion":"DEMOA1"}`.
+- `GET /desafios/:desafioId/participaciones`: participaciones activas con
+  datos de la persona en el campo `persona`.
+- `GET /checkin/desafio/:desafioId/persona/:personaId`: check-ins de esa
+  persona en el desafío, ordenados por día.
+- `PATCH /personas/:id`: permite solo `nombre` y `zonaHoraria`.
+
+Los DTOs y el `ValidationPipe` global rechazan formatos inválidos y propiedades
+desconocidas con 400. Los recursos inexistentes devuelven 404, los permisos
+403 y los estados incompatibles o duplicados 409. Las respuestas convierten
+`_id` en `id` y omiten `__v`, también dentro de listas y personas pobladas;
+la persistencia conserva los campos propios de MongoDB.
 
 ## Compile and run the project
 

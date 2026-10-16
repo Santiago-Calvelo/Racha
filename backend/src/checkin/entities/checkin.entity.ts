@@ -2,22 +2,31 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { esDiaValido } from '../../comun/fechas';
 
-export type RegistroCumplimientoDocumento =
-  HydratedDocument<RegistroCumplimiento>;
+export type CheckinDocumento = HydratedDocument<Checkin>;
 
 /**
- * Esquema `RegistroCumplimiento` (colección `registros_cumplimiento`).
+ * Esquema `Checkin` (colección `registros_cumplimiento`).
  * El día se guarda como texto `YYYY-MM-DD` según la zona horaria de la
  * persona, no como `Date`, para evitar desplazamientos por conversiones
  * de zona horaria. Los documentos son inmutables: no se editan, solo se
  * puede deshacer el último del día actual.
  */
 @Schema({ collection: 'registros_cumplimiento' })
-export class RegistroCumplimiento {
-  @Prop({ type: Types.ObjectId, ref: 'Persona', required: true, immutable: true })
+export class Checkin {
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Persona',
+    required: true,
+    immutable: true,
+  })
   persona: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Desafio', required: true, immutable: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Desafio',
+    required: true,
+    immutable: true,
+  })
   desafio: Types.ObjectId;
 
   @Prop({
@@ -44,15 +53,10 @@ export class RegistroCumplimiento {
   valor?: number;
 }
 
-export const RegistroCumplimientoEsquema = SchemaFactory.createForClass(
-  RegistroCumplimiento,
-);
+export const CheckinEsquema = SchemaFactory.createForClass(Checkin);
 
-/** Un registro diario por persona y desafío. */
-RegistroCumplimientoEsquema.index(
-  { persona: 1, desafio: 1, dia: 1 },
-  { unique: true },
-);
+/** Un checkin diario por persona y desafío. */
+CheckinEsquema.index({ persona: 1, desafio: 1, dia: 1 }, { unique: true });
 
 /** Historial y ranking por desafío ordenados por día. */
-RegistroCumplimientoEsquema.index({ desafio: 1, dia: 1 });
+CheckinEsquema.index({ desafio: 1, dia: 1 });

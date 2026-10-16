@@ -13,7 +13,7 @@ import {
   Types,
   isValidObjectId,
 } from 'mongoose';
-import { CrearDesafioDto } from './dto/crear-desafio.dto';
+import { CrearDesafioDto, FiltrarDesafiosDto } from './dto/crear-desafio.dto';
 import { ActualizarDesafioDto } from './dto/actualizar-desafio.dto';
 import {
   Desafio,
@@ -26,7 +26,7 @@ import {
   Participacion,
   ParticipacionDocumento,
 } from '../participaciones/entities/participacion.entity';
-import { MAXIMO_DESAFIOS_VIGENTES_POR_PERSONA } from '../comun/constantes';
+import { verificarTopeVigentes } from '../comun/limite-desafios';
 import { generarCodigoInvitacion, hoyReferencia } from '../comun/fechas';
 import {
   REINTENTOS_CODIGO,
@@ -58,13 +58,21 @@ export class DesafiosService {
   async crear(dto: CrearDesafioDto): Promise<Desafio> {
     const creador = await this.obtenerPersona(dto.creador);
     const datos = validarFechasYCupo(dto, hoyReferencia());
-    await this.verificarTopeVigentes(dto.creador);
 
     let ultimoError: unknown = null;
     for (let intento = 0; intento < REINTENTOS_CODIGO; intento += 1) {
       const sesion = await this.conexion.startSession();
       try {
         return await sesion.withTransaction(async () => {
+          await verificarTopeVigentes(
+            creador._id,
+            {
+              personas: this.personaModelo,
+              desafios: this.desafioModelo,
+              participaciones: this.participacionModelo,
+            },
+            sesion,
+          );
           const creados = await this.desafioModelo.create(
             [
               {
@@ -111,8 +119,40 @@ export class DesafiosService {
     );
   }
 
-  async listar(): Promise<Desafio[]> {
-    return this.desafioModelo.find().lean().exec();
+  async listar(filtros: FiltrarDesafiosDto = {}): Promise<Desafio[]> {
+    const desafios = await this.desafioModelo
+      .find(filtros.categoria ? { categoria: filtros.categoria } : {})
+      .lean()
+      .exec();
+    return desafios
+      .map((desafio) => ({
+        ...desafio,
+        estado: calcularEstadoDesafio(desafio),
+      }))
+      .filter(
+        (desafio) =>
+          filtros.estado === undefined || desafio.estado === filtros.estado,
+      );
+  }
+
+  async listarPorPersona(personaId: string): Promise<Desafio[]> {
+    await this.obtenerPersona(personaId);
+    const participaciones = await this.participacionModelo
+      .find({ persona: personaId })
+      .lean()
+      .exec();
+    const desafios = await this.desafioModelo
+      .find({
+        _id: {
+          $in: participaciones.map((participacion) => participacion.desafio),
+        },
+      })
+      .lean()
+      .exec();
+    return desafios.map((desafio) => ({
+      ...desafio,
+      estado: calcularEstadoDesafio(desafio),
+    }));
   }
 
   async obtener(id: string): Promise<Desafio> {
@@ -123,7 +163,7 @@ export class DesafiosService {
     return desafio;
   }
 
-/**
+  /**
    * Modifica nombre, descripción, categoría, fechas y cupo únicamente
    * mientras el desafío esté PROGRAMADO. No permite reducir el cupo por
    * debajo de los participantes activos.
@@ -136,12 +176,13 @@ export class DesafiosService {
       throw new NotFoundException(`Desafío #${id} no encontrado`);
     }
     if (calcularEstadoDesafio(desafio.toObject()) !== 'PROGRAMADO') {
-      throw new BadRequestException(
+      throw new ConflictException(
         'Solo se pueden modificar las fechas y los cupos mientras el desafío esté programado',
       );
     }
 
-    const nombre = dto.nombre === undefined ? desafio.nombre : validarNombre(dto.nombre);
+    const nombre =
+      dto.nombre === undefined ? desafio.nombre : validarNombre(dto.nombre);
     if (dto.descripcion !== undefined) {
       validarDescripcion(dto.descripcion);
     }
@@ -196,19 +237,22 @@ export class DesafiosService {
     if (!desafio) {
       throw new NotFoundException(`Desafío #${id} no encontrado`);
     }
+    await this.obtenerPersona(creador);
     if (String(desafio.creador) !== creador) {
-      throw new ForbiddenException(
-        'Solo el creador puede cancelar el desafío',
-      );
+      throw new ForbiddenException('Solo el creador puede cancelar el desafío');
     }
     const estado = calcularEstadoDesafio(desafio.toObject());
     if (estado !== 'PROGRAMADO' && estado !== 'ACTIVO') {
-      throw new BadRequestException(
+      throw new ConflictException(
         'Solo se pueden cancelar desafíos programados o activos',
       );
     }
     desafio.fechaCancelacion = new Date();
-    await desafio.save();
+    try {
+      await desafio.save({ validateModifiedOnly: true });
+    } catch (error) {
+      throw this.traducirError(error);
+    }
     return desafio.toObject() as Desafio;
   }
 
@@ -238,29 +282,6 @@ export class DesafiosService {
     return new Types.ObjectId(id);
   }
 
-  /**
-   * Tope de 5 desafíos vigentes (programados o activos, es decir con
-   * `fechaFin` no anterior a hoy y sin cancelar) por persona, contando
-   * los creados. Se cuenta por aplicación porque el estado es calculado;
-   * la concurrencia exacta requeriría una colección de contadores con
-   * actualización atómica (ver README).
-   */
-  private async verificarTopeVigentes(persona: string): Promise<void> {
-    const hoy = hoyReferencia();
-    const vigentes = await this.desafioModelo
-      .countDocuments({
-        creador: new Types.ObjectId(persona),
-        fechaCancelacion: null,
-        fechaFin: { $gte: hoy },
-      })
-      .exec();
-    if (vigentes >= MAXIMO_DESAFIOS_VIGENTES_POR_PERSONA) {
-      throw new ForbiddenException(
-        `Cada persona puede tener hasta ${MAXIMO_DESAFIOS_VIGENTES_POR_PERSONA} desafíos vigentes, contando los creados`,
-      );
-    }
-  }
-
   private contarActivos(desafio: Types.ObjectId): Promise<number> {
     return this.participacionModelo
       .countDocuments({ desafio, estado: EstadoParticipacion.ACTIVA })
@@ -279,6 +300,11 @@ export class DesafiosService {
   }
 
   private traducirError(error: unknown): Error {
+    if (error instanceof MongooseError.VersionError) {
+      return new ConflictException(
+        'El desafío cambió durante la operación; volvé a intentarlo',
+      );
+    }
     if (error instanceof MongooseError.ValidationError) {
       throw new BadRequestException(error.message);
     }

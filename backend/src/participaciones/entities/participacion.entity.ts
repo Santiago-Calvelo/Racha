@@ -16,10 +16,20 @@ export type ParticipacionDocumento = HydratedDocument<Participacion>;
  */
 @Schema({ collection: 'participaciones' })
 export class Participacion {
-  @Prop({ type: Types.ObjectId, ref: 'Persona', required: true, immutable: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Persona',
+    required: true,
+    immutable: true,
+  })
   persona: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Desafio', required: true, immutable: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Desafio',
+    required: true,
+    immutable: true,
+  })
   desafio: Types.ObjectId;
 
   @Prop({
@@ -36,8 +46,7 @@ export class Participacion {
   fechaAbandono: Date | null;
 }
 
-export const ParticipacionEsquema =
-  SchemaFactory.createForClass(Participacion);
+export const ParticipacionEsquema = SchemaFactory.createForClass(Participacion);
 
 /** Una persona participa una sola vez por desafío (activa o histórica). */
 ParticipacionEsquema.index({ persona: 1, desafio: 1 }, { unique: true });

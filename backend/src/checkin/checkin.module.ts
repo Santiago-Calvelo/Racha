@@ -1,11 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { RegistrosService } from './registros.service';
-import { RegistrosController } from './registros.controller';
-import {
-  RegistroCumplimiento,
-  RegistroCumplimientoEsquema,
-} from './entities/registro-cumplimiento.entity';
+import { CheckinService } from './checkin.service';
+import { CheckinController } from './checkin.controller';
+import { Checkin, CheckinEsquema } from './entities/checkin.entity';
 import { Desafio, DesafioEsquema } from '../desafios/entities/desafio.entity';
 import { Persona, PersonaEsquema } from '../personas/entities/persona.entity';
 import {
@@ -16,14 +13,14 @@ import {
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: RegistroCumplimiento.name, schema: RegistroCumplimientoEsquema },
+      { name: Checkin.name, schema: CheckinEsquema },
       { name: Desafio.name, schema: DesafioEsquema },
       { name: Persona.name, schema: PersonaEsquema },
       { name: Participacion.name, schema: ParticipacionEsquema },
     ]),
   ],
-  controllers: [RegistrosController],
-  providers: [RegistrosService],
-  exports: [RegistrosService],
+  controllers: [CheckinController],
+  providers: [CheckinService],
+  exports: [CheckinService],
 })
-export class RegistrosModule {}
+export class CheckinModule {}

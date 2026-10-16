@@ -16,7 +16,10 @@ describe('calcularEstadoDesafio', () => {
 
   it('representa CANCELADO con fechaCancelacion', () => {
     expect(
-      calcularEstadoDesafio({ ...base, fechaCancelacion: new Date() }, '2026-10-15'),
+      calcularEstadoDesafio(
+        { ...base, fechaCancelacion: new Date() },
+        '2026-10-15',
+      ),
     ).toBe('CANCELADO');
   });
 

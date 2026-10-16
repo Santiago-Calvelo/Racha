@@ -309,15 +309,15 @@ describe('PersonasService', () => {
       });
     });
 
-    it('lanza BadRequest si el nuevo alias es inválido', async () => {
+    it('lanza BadRequest si el nuevo nombre está vacío', async () => {
       const creada = await service.create(dtoValido);
 
-      await expect(service.update(idDe(creada), { alias: 'x' })).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.update(idDe(creada), { nombre: '' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it('lanza Conflict si el nuevo alias o email ya pertenecen a otra persona', async () => {
+    it('conserva el alias y email al modificar otra persona', async () => {
       await service.create(dtoValido);
       const segunda = await service.create({
         nombre: 'Otra Persona',
@@ -325,20 +325,17 @@ describe('PersonasService', () => {
         email: 'otra@example.com',
       });
 
-      await expect(
-        service.update(idDe(segunda), { alias: 'ana_perez' }),
-      ).rejects.toThrow(ConflictException);
-      await expect(
-        service.update(idDe(segunda), { email: 'ana@example.com' }),
-      ).rejects.toThrow(ConflictException);
+      const actualizada = await service.update(idDe(segunda), {
+        nombre: 'Otro nombre',
+      });
+      expect(actualizada.alias).toBe('otra_persona');
+      expect(actualizada.email).toBe('otra@example.com');
     });
 
     it('permite conservar el propio alias y email al actualizar', async () => {
       const creada = await service.create(dtoValido);
 
       const actualizada = await service.update(idDe(creada), {
-        alias: creada.alias,
-        email: creada.email,
         nombre: 'Ana Pérez Jr.',
       });
 

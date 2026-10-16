@@ -2,9 +2,9 @@ import { validarEntorno } from './validar-entorno';
 
 describe('validarEntorno', () => {
   it('acepta una URI no vacía y la recorta', () => {
-    expect(
-      validarEntorno({ MONGODB_URI: '  mongodb://local  ' }),
-    ).toEqual({ MONGODB_URI: 'mongodb://local' });
+    expect(validarEntorno({ MONGODB_URI: '  mongodb://local  ' })).toEqual({
+      MONGODB_URI: 'mongodb://local',
+    });
   });
 
   it('falla con mensaje seguro si falta la URI', () => {

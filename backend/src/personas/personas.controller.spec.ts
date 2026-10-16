@@ -67,7 +67,11 @@ describe('PersonasController', () => {
 
   it('busca, actualiza y elimina personas por id', async () => {
     const id = new Types.ObjectId().toHexString();
-    const creada = { _id: id, ...dtoValido };
+    const creada = {
+      _id: id,
+      ...dtoValido,
+      zonaHoraria: 'America/Argentina/Buenos_Aires',
+    };
     servicio.findOne.mockResolvedValueOnce(creada);
     servicio.update.mockResolvedValueOnce({ ...creada, nombre: 'Ana P.' });
     servicio.remove.mockResolvedValueOnce(creada);

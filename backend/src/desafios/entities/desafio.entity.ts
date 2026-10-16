@@ -16,7 +16,8 @@ export enum CategoriaDesafio {
 }
 
 /** Estados temporales calculados (nunca persistidos). */
-export type EstadoDesafio = 'PROGRAMADO' | 'ACTIVO' | 'FINALIZADO' | 'CANCELADO';
+export type EstadoDesafio =
+  'PROGRAMADO' | 'ACTIVO' | 'FINALIZADO' | 'CANCELADO';
 
 export type DesafioDocumento = HydratedDocument<Desafio>;
 
@@ -24,7 +25,7 @@ export type DesafioDocumento = HydratedDocument<Desafio>;
  * Esquema `Desafio` (colección `desafios`).
  * El estado temporal se calcula desde las fechas y `fechaCancelacion`.
  */
-@Schema({ collection: 'desafios' })
+@Schema({ collection: 'desafios', optimisticConcurrency: true })
 export class Desafio {
   @Prop({
     required: [true, 'El nombre es obligatorio'],
@@ -34,7 +35,10 @@ export class Desafio {
   })
   nombre: string;
 
-  @Prop({ trim: true, maxlength: [280, 'La descripción admite 280 caracteres'] })
+  @Prop({
+    trim: true,
+    maxlength: [280, 'La descripción admite 280 caracteres'],
+  })
   descripcion?: string;
 
   @Prop({
@@ -48,7 +52,8 @@ export class Desafio {
     validate: [
       {
         validator: (valor: string) => esDiaValido(valor),
-        message: 'La fecha de inicio debe ser un día real con formato YYYY-MM-DD',
+        message:
+          'La fecha de inicio debe ser un día real con formato YYYY-MM-DD',
       },
       {
         validator: (valor: string) =>
@@ -62,13 +67,13 @@ export class Desafio {
   @Prop({
     required: [true, 'La fecha de fin es obligatoria'],
     validate: {
-      validator: function (este: { fechaInicio: string }, valor: string) {
+      validator: function (this: { fechaInicio: string }, valor: string) {
         return (
           esDiaValido(valor) &&
-          esDiaValido(este.fechaInicio) &&
-          valor >= este.fechaInicio &&
-          duracionEnDias(este.fechaInicio, valor) >= DURACION_MINIMA_DIAS &&
-          duracionEnDias(este.fechaInicio, valor) <= DURACION_MAXIMA_DIAS
+          esDiaValido(this.fechaInicio) &&
+          valor >= this.fechaInicio &&
+          duracionEnDias(this.fechaInicio, valor) >= DURACION_MINIMA_DIAS &&
+          duracionEnDias(this.fechaInicio, valor) <= DURACION_MAXIMA_DIAS
         );
       },
       message: `El desafío debe durar entre ${DURACION_MINIMA_DIAS} y ${DURACION_MAXIMA_DIAS} días, contando inicio y fin`,
@@ -96,7 +101,12 @@ export class Desafio {
   })
   codigoInvitacion: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Persona', required: true, immutable: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Persona',
+    required: true,
+    immutable: true,
+  })
   creador: Types.ObjectId;
 
   @Prop({ type: Date, default: null })
@@ -118,7 +128,10 @@ export function calcularEstadoDesafio(
   },
   hoy = hoyReferencia(),
 ): EstadoDesafio {
-  if (desafio.fechaCancelacion !== null && desafio.fechaCancelacion !== undefined) {
+  if (
+    desafio.fechaCancelacion !== null &&
+    desafio.fechaCancelacion !== undefined
+  ) {
     return 'CANCELADO';
   }
   if (hoy < desafio.fechaInicio) {

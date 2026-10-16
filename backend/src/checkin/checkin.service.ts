@@ -6,13 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Error as MongooseError, Model, Types, isValidObjectId } from 'mongoose';
+import {
+  Error as MongooseError,
+  Model,
+  Types,
+  isValidObjectId,
+} from 'mongoose';
 import { RegistrarCumplimientoDto } from './dto/registrar-cumplimiento.dto';
 import { DeshacerCumplimientoDto } from './dto/deshacer-cumplimiento.dto';
-import {
-  RegistroCumplimiento,
-  RegistroCumplimientoDocumento,
-} from './entities/registro-cumplimiento.entity';
+import { Checkin, CheckinDocumento } from './entities/checkin.entity';
 import { DesafioDocumento } from '../desafios/entities/desafio.entity';
 import { Desafio } from '../desafios/entities/desafio.entity';
 import { calcularEstadoDesafio } from '../desafios/entities/desafio.entity';
@@ -23,14 +25,14 @@ import {
   ParticipacionDocumento,
 } from '../participaciones/entities/participacion.entity';
 import { Participacion } from '../participaciones/entities/participacion.entity';
-import { NOTA_MAXIMA } from './registros.constantes';
+import { NOTA_MAXIMA } from './checkin.constantes';
 import { diaEnZona } from '../comun/fechas';
 
 @Injectable()
-export class RegistrosService {
+export class CheckinService {
   constructor(
-    @InjectModel(RegistroCumplimiento.name)
-    private readonly registroModelo: Model<RegistroCumplimientoDocumento>,
+    @InjectModel(Checkin.name)
+    private readonly checkinModelo: Model<CheckinDocumento>,
     @InjectModel(Desafio.name)
     private readonly desafioModelo: Model<DesafioDocumento>,
     @InjectModel(Persona.name)
@@ -45,13 +47,21 @@ export class RegistrosService {
    * activa. El índice único { persona, desafio, dia } impide duplicados
    * del mismo día.
    */
-  async registrar(dto: RegistrarCumplimientoDto): Promise<RegistroCumplimiento> {
+  async registrar(dto: RegistrarCumplimientoDto): Promise<Checkin> {
     const persona = await this.obtenerPersona(dto.persona);
     const desafio = await this.obtenerDesafio(dto.desafio);
     await this.exigirParticipacionActiva(dto.persona, desafio._id);
+    if (calcularEstadoDesafio(desafio) === 'CANCELADO') {
+      throw new ConflictException(
+        'No se puede registrar cumplimiento en un desafío cancelado',
+      );
+    }
 
     const hoy = diaEnZona(new Date(), persona.zonaHoraria);
-    const ayer = diaEnZona(new Date(Date.now() - 86_400_000), persona.zonaHoraria);
+    const ayer = diaEnZona(
+      new Date(Date.now() - 86_400_000),
+      persona.zonaHoraria,
+    );
     const dia = this.diaPermitido(dto, hoy, ayer);
     if (dia < desafio.fechaInicio || dia > desafio.fechaFin) {
       throw new BadRequestException(
@@ -62,18 +72,18 @@ export class RegistrosService {
     const valor = this.validarValor(dto.valor);
 
     try {
-      const creado = await this.registroModelo.create({
+      const creado = await this.checkinModelo.create({
         persona: persona._id,
         desafio: desafio._id,
         dia,
         nota,
         valor,
       });
-      return creado.toObject() as RegistroCumplimiento;
+      return creado.toObject() as Checkin;
     } catch (error) {
       if (this.esDuplicado(error)) {
         throw new ConflictException(
-          `Ya existe un registro para el día ${dia} en este desafío`,
+          `Ya existe un checkin para el día ${dia} en este desafío`,
         );
       }
       if (error instanceof MongooseError.ValidationError) {
@@ -83,42 +93,49 @@ export class RegistrosService {
     }
   }
 
-/**
-   * Deshace exclusivamente el último registro propio del desafío y solo
+  /**
+   * Deshace exclusivamente el último checkin propio del desafío y solo
    * si corresponde al día actual de la persona. No existen ediciones
    * arbitrarias: los documentos son inmutables.
    */
-  async deshacer(dto: DeshacerCumplimientoDto): Promise<RegistroCumplimiento> {
+  async deshacer(dto: DeshacerCumplimientoDto): Promise<Checkin> {
     const persona = await this.obtenerPersona(dto.persona);
     const desafio = await this.obtenerDesafio(dto.desafio);
     const hoy = diaEnZona(new Date(), persona.zonaHoraria);
 
-    const ultimo = await this.registroModelo
+    const ultimo = await this.checkinModelo
       .findOne({ persona: persona._id, desafio: desafio._id })
       .sort({ dia: -1 })
       .lean()
       .exec();
     if (!ultimo) {
       throw new NotFoundException(
-        'No existe ningún registro propio en este desafío',
+        'No existe ningún checkin propio en este desafío',
       );
     }
     if (ultimo.dia !== hoy) {
-      throw new ForbiddenException(
-        'Solo se puede deshacer el último registro propio correspondiente al día actual',
+      throw new ConflictException(
+        'Solo se puede deshacer el último checkin propio correspondiente al día actual',
       );
     }
-    await this.registroModelo
+    await this.checkinModelo
       .deleteOne({ _id: ultimo._id as Types.ObjectId })
       .exec();
-    return ultimo as RegistroCumplimiento;
+    return ultimo as Checkin;
   }
 
-  /** Historial de registros de un desafío ordenado por día. */
-  async listarPorDesafio(desafioId: string): Promise<RegistroCumplimiento[]> {
+  /** Historial de checkins de un desafío ordenado por día. */
+  async listarPorDesafio(
+    desafioId: string,
+    personaId?: string,
+  ): Promise<Checkin[]> {
     const desafio = await this.obtenerDesafio(desafioId);
-    return this.registroModelo
-      .find({ desafio: desafio._id })
+    if (personaId !== undefined) await this.obtenerPersona(personaId);
+    return this.checkinModelo
+      .find({
+        desafio: desafio._id,
+        ...(personaId === undefined ? {} : { persona: personaId }),
+      })
       .sort({ dia: 1 })
       .lean()
       .exec();
@@ -207,11 +224,6 @@ export class RegistrosService {
     const desafio = await this.desafioModelo.findById(id).lean().exec();
     if (!desafio) {
       throw new NotFoundException(`Desafío #${id} no encontrado`);
-    }
-    if (calcularEstadoDesafio(desafio) === 'CANCELADO') {
-      throw new BadRequestException(
-        'No se puede registrar cumplimiento en un desafío cancelado',
-      );
     }
     return desafio;
   }
