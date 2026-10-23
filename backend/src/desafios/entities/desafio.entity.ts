@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Types, Schema as MongooseSchema } from 'mongoose';
 import {
   DURACION_MAXIMA_DIAS,
   DURACION_MINIMA_DIAS,
@@ -102,7 +102,7 @@ export class Desafio {
   codigoInvitacion: string;
 
   @Prop({
-    type: Types.ObjectId,
+    type: MongooseSchema.Types.ObjectId,
     ref: 'Persona',
     required: true,
     immutable: true,

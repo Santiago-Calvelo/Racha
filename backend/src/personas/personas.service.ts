@@ -11,6 +11,7 @@ import { UpdatePersonaDto } from './dto/update-persona.dto';
 import { Persona, PersonaDocumento } from './entities/persona.entity';
 import { ZONA_HORARIA_POR_DEFECTO } from '../comun/constantes';
 import { esZonaHorariaValida } from '../comun/fechas';
+import { exigirMismaPersona } from '../comun/permisos';
 
 /** Alias: 3 a 20 caracteres, solo letras ASCII, números y guion bajo. */
 const ALIAS_REGEX = /^[A-Za-z0-9_]{3,20}$/;
@@ -62,7 +63,9 @@ export class PersonasService {
   async update(
     id: string,
     updatePersonaDto: UpdatePersonaDto,
+    usuarioId: string,
   ): Promise<Persona> {
+    exigirMismaPersona(usuarioId, id);
     const actual = await this.buscarPorId(id);
     if (!actual) {
       throw new NotFoundException(`Persona #${id} no encontrada`);
@@ -92,7 +95,8 @@ export class PersonasService {
     }
   }
 
-  async remove(id: string): Promise<Persona> {
+  async remove(id: string, usuarioId: string): Promise<Persona> {
+    exigirMismaPersona(usuarioId, id);
     const eliminada = await this.buscarPorId(id);
     if (!eliminada) {
       throw new NotFoundException(`Persona #${id} no encontrada`);

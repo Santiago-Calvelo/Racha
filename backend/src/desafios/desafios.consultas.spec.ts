@@ -20,6 +20,7 @@ describe('Consultas y estados de desafíos', () => {
   const id = new Types.ObjectId();
   const creador = new Types.ObjectId();
   const consulta = (valor: unknown) => ({
+    sort: () => consulta(valor), skip: () => consulta(valor), limit: () => consulta(valor),
     lean: () => ({ exec: async () => valor }),
   });
   const activos = {
@@ -35,13 +36,14 @@ describe('Consultas y estados de desafíos', () => {
     nombre: 'Cancelado',
     fechaCancelacion: new Date(),
   };
-  const documentos = { find: jest.fn(), findById: jest.fn() };
+  const documentos = { find: jest.fn(), findById: jest.fn(), countDocuments: jest.fn().mockResolvedValue(2) };
   const personas = { findById: jest.fn() };
   const participaciones = { find: jest.fn() };
   let servicio: DesafiosService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    participaciones.find.mockReturnValue(consulta([]));
     const modulo = await Test.createTestingModule({
       providers: [
         DesafiosService,
@@ -59,14 +61,15 @@ describe('Consultas y estados de desafíos', () => {
 
   it('lista sin filtros y combina categoría con estado calculado', async () => {
     documentos.find.mockImplementation(() => consulta([activos, cancelado]));
-    expect(await servicio.listar()).toHaveLength(2);
+    expect((await servicio.listar()).items).toHaveLength(2);
     expect(documentos.find).toHaveBeenLastCalledWith({});
+    documentos.find.mockReturnValueOnce(consulta([activos]));
     const resultado = await servicio.listar({
       estado: 'ACTIVO',
       categoria: CategoriaDesafio.SALUD,
     });
-    expect(resultado).toEqual([{ ...activos, estado: 'ACTIVO' }]);
-    expect(documentos.find).toHaveBeenLastCalledWith({ categoria: 'SALUD' });
+    expect(resultado.items).toEqual([{ ...activos, estado: 'ACTIVO', participantesActivos: 0, miParticipacion: null }]);
+    expect(documentos.find).toHaveBeenLastCalledWith({ categoria: 'SALUD', fechaCancelacion: null, fechaInicio: { $lte: hoyReferencia() }, fechaFin: { $gte: hoyReferencia() } });
   });
 
   it('lista por participaciones de la persona y comprueba su existencia', async () => {
@@ -87,7 +90,7 @@ describe('Consultas y estados de desafíos', () => {
   it('prioriza existencia y permisos antes del conflicto de estado al cancelar', async () => {
     documentos.findById.mockReturnValue({ exec: async () => null });
     await expect(
-      servicio.cancelar(String(id), String(creador)),
+      servicio.cancelar(String(id), String(creador), String(creador)),
     ).rejects.toThrow(NotFoundException);
     const documento = {
       ...cancelado,
@@ -98,14 +101,14 @@ describe('Consultas y estados de desafíos', () => {
     documentos.findById.mockReturnValue({ exec: async () => documento });
     personas.findById.mockReturnValue({ exec: async () => null });
     await expect(
-      servicio.cancelar(String(id), String(creador)),
+      servicio.cancelar(String(id), String(creador), String(creador)),
     ).rejects.toThrow(NotFoundException);
     personas.findById.mockReturnValue({ exec: async () => ({ _id: creador }) });
     await expect(
-      servicio.cancelar(String(id), String(new Types.ObjectId())),
+      servicio.cancelar(String(id), String(new Types.ObjectId()), String(creador)),
     ).rejects.toThrow(ForbiddenException);
     await expect(
-      servicio.cancelar(String(id), String(creador)),
+      servicio.cancelar(String(id), String(creador), String(creador)),
     ).rejects.toThrow(ConflictException);
     expect(documento.save).not.toHaveBeenCalled();
   });
@@ -144,7 +147,7 @@ describe('Consultas y estados de desafíos', () => {
     });
     try {
       await expect(
-        servicio.actualizar(String(id), { maximoParticipantes: 2 }),
+        servicio.actualizar(String(id), { maximoParticipantes: 2 }, String(creador)),
       ).rejects.toThrow(ConflictException);
       expect(escritura.mock.calls[0][0]).toMatchObject({ _id: id, __v: 0 });
     } finally {

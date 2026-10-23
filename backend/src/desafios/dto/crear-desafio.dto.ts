@@ -1,4 +1,5 @@
 import { CategoriaDesafio } from '../entities/desafio.entity';
+import { PaginacionDto } from '../../comun/paginacion.dto';
 import { Transform } from 'class-transformer';
 import {
   IsDateString,
@@ -46,7 +47,7 @@ export class CrearDesafioDto {
   creador: string;
 }
 
-export class FiltrarDesafiosDto {
+export class FiltrarDesafiosDto extends PaginacionDto {
   @ValidateIf((_, value: unknown) => value !== undefined)
   @IsEnum(CategoriaDesafio)
   categoria?: CategoriaDesafio;

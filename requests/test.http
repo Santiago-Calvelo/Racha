@@ -1,0 +1,142 @@
+# VS Code + extensión REST Client (Huachao Mao).
+# Iniciar el back con npm run start desde la raíz y enviar en este orden.
+# Si cambiaste PORT en el .env raíz, ajustar el puerto de baseUrl.
+# Cada ejecución crea datos nuevos; no borra personas ni desafíos existentes.
+@baseUrl = http://localhost:3000
+@hoy = {{$datetime "YYYY-MM-DD" -3 h}}
+@fin = {{$datetime "YYYY-MM-DD" 6 d}}
+# Copiar EXPO_PUBLIC_USUARIO_INICIAL_ID del .env raíz (persona existente).
+@usuarioInicial = 6adb4c3670bc550e2c39d726
+
+### 1. Crear persona creadora — 201, guardar id automáticamente
+# @name creadora
+POST {{baseUrl}}/personas
+x-usuario-id: {{usuarioInicial}}
+Content-Type: application/json
+
+{
+  "nombre": "Ana HTTP",
+  "alias": "ana_{{$timestamp}}",
+  "email": "ana_{{$timestamp}}@example.com",
+  "zonaHoraria": "America/Argentina/Buenos_Aires"
+}
+
+### 2. Crear segunda persona — 201
+# @name participante
+POST {{baseUrl}}/personas
+x-usuario-id: {{usuarioInicial}}
+Content-Type: application/json
+
+{
+  "nombre": "Bruno HTTP",
+  "alias": "bruno_{{$timestamp}}",
+  "email": "bruno_{{$timestamp}}@example.com",
+  "zonaHoraria": "America/Argentina/Buenos_Aires"
+}
+
+### 3. Crear desafío activo desde hoy — 201, incluye codigoInvitacion
+# @name desafio
+POST {{baseUrl}}/desafios
+x-usuario-id: {{creadora.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "nombre": "Caminar cada día HTTP",
+  "categoria": "SALUD",
+  "fechaInicio": "{{hoy}}",
+  "fechaFin": "{{fin}}",
+  "maximoParticipantes": 10,
+  "creador": "{{creadora.response.body.$.id}}"
+}
+
+### 4. Unirse por código — 201
+POST {{baseUrl}}/participaciones
+x-usuario-id: {{participante.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "persona": "{{participante.response.body.$.id}}",
+  "codigoInvitacion": "{{desafio.response.body.$.codigoInvitacion}}"
+}
+
+### 5. Registrar check-in de hoy — 201
+POST {{baseUrl}}/checkin
+x-usuario-id: {{participante.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "persona": "{{participante.response.body.$.id}}",
+  "desafio": "{{desafio.response.body.$.id}}",
+  "dia": "hoy",
+  "nota": "Caminé treinta minutos",
+  "valor": 30
+}
+
+### 6. FALLO: duplicar check-in — 409
+# message: Ya existe un checkin para el día YYYY-MM-DD en este desafío
+POST {{baseUrl}}/checkin
+x-usuario-id: {{participante.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "persona": "{{participante.response.body.$.id}}",
+  "desafio": "{{desafio.response.body.$.id}}",
+  "dia": "hoy"
+}
+
+### 7. Deshacer el check-in — 200, devuelve el registro eliminado
+DELETE {{baseUrl}}/checkin/ultimo
+x-usuario-id: {{participante.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "persona": "{{participante.response.body.$.id}}",
+  "desafio": "{{desafio.response.body.$.id}}"
+}
+
+### 8. Comprobar que quedó sin check-ins — 200, items: [], total: 0
+GET {{baseUrl}}/checkin/desafio/{{desafio.response.body.$.id}}/persona/{{participante.response.body.$.id}}
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 9. Listado paginado — 200, items incluye el desafío creado y su estado
+GET {{baseUrl}}/desafios
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 10. FALLO: ID inválido — 400
+# message: El id debe ser un ObjectId válido
+GET {{baseUrl}}/desafios/id-invalido
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 11. FALLO: cancelar sin ser creador — 403
+# message: Solo el creador puede cancelar el desafío
+POST {{baseUrl}}/desafios/{{desafio.response.body.$.id}}/cancelar
+x-usuario-id: {{participante.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "creador": "{{participante.response.body.$.id}}"
+}
+
+### 12. Ranking real — 200, participantes ordenados por puntos, racha y alias
+GET {{baseUrl}}/desafios/{{desafio.response.body.$.id}}/ranking
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 13. Inicio en una llamada — 200
+GET {{baseUrl}}/personas/{{participante.response.body.$.id}}/inicio
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 14. Progreso propio — 200
+GET {{baseUrl}}/desafios/{{desafio.response.body.$.id}}/personas/{{participante.response.body.$.id}}/progreso
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 15. Filtros y paginación por query — 200
+GET {{baseUrl}}/desafios?pagina=1&limite=2&categoria=SALUD&estado=ACTIVO
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 16. Paginación inválida — 400
+GET {{baseUrl}}/desafios?pagina=0
+x-usuario-id: {{participante.response.body.$.id}}
+
+### 17. Resultados finalizados — 200, puede estar vacío
+GET {{baseUrl}}/personas/{{participante.response.body.$.id}}/resultados?pagina=1
+x-usuario-id: {{participante.response.body.$.id}}

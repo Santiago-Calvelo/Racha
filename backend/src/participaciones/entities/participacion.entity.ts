@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Types, Schema as MongooseSchema } from 'mongoose';
 
 /** Estado de una participación. */
 export enum EstadoParticipacion {
@@ -17,7 +17,7 @@ export type ParticipacionDocumento = HydratedDocument<Participacion>;
 @Schema({ collection: 'participaciones' })
 export class Participacion {
   @Prop({
-    type: Types.ObjectId,
+    type: MongooseSchema.Types.ObjectId,
     ref: 'Persona',
     required: true,
     immutable: true,
@@ -25,7 +25,7 @@ export class Participacion {
   persona: Types.ObjectId;
 
   @Prop({
-    type: Types.ObjectId,
+    type: MongooseSchema.Types.ObjectId,
     ref: 'Desafio',
     required: true,
     immutable: true,

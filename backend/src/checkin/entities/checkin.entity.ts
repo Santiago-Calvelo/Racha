@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Types, Schema as MongooseSchema } from 'mongoose';
 import { esDiaValido } from '../../comun/fechas';
 
 export type CheckinDocumento = HydratedDocument<Checkin>;
@@ -13,8 +13,11 @@ export type CheckinDocumento = HydratedDocument<Checkin>;
  */
 @Schema({ collection: 'registros_cumplimiento' })
 export class Checkin {
+  @Prop({ required: true, enum: [10, 15, 20], immutable: true })
+  puntos: number;
+
   @Prop({
-    type: Types.ObjectId,
+    type: MongooseSchema.Types.ObjectId,
     ref: 'Persona',
     required: true,
     immutable: true,
@@ -22,7 +25,7 @@ export class Checkin {
   persona: Types.ObjectId;
 
   @Prop({
-    type: Types.ObjectId,
+    type: MongooseSchema.Types.ObjectId,
     ref: 'Desafio',
     required: true,
     immutable: true,

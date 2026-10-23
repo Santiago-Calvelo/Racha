@@ -1,7 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import request from 'supertest';
+import supertest from 'supertest';
 import { PersonasController } from '../src/personas/personas.controller';
 import { PersonasService } from '../src/personas/personas.service';
 import { DesafiosController } from '../src/desafios/desafios.controller';
@@ -11,12 +11,15 @@ import { ParticipacionesService } from '../src/participaciones/participaciones.s
 import { CheckinController } from '../src/checkin/checkin.controller';
 import { CheckinService } from '../src/checkin/checkin.service';
 import { RespuestaInterceptor } from '../src/comun/respuesta.interceptor';
+import { UsuarioGuard } from '../src/comun/usuario.guard';
 
 describe('Contratos HTTP', () => {
   let app: INestApplication;
   const persona = new Types.ObjectId();
+  const request = (servidor: Parameters<typeof supertest>[0]) =>
+    supertest.agent(servidor).set('x-usuario-id', persona.toHexString());
   const desafio = new Types.ObjectId();
-  const personas = { create: jest.fn(), update: jest.fn() };
+  const personas = { create: jest.fn(), update: jest.fn(), findOne: jest.fn().mockResolvedValue({ _id: persona }) };
   const desafios = {
     listar: jest.fn(),
     listarPorPersona: jest.fn(),
@@ -49,6 +52,7 @@ describe('Contratos HTTP', () => {
       }),
     );
     app.useGlobalInterceptors(new RespuestaInterceptor());
+    app.useGlobalGuards(new UsuarioGuard(modulo.get(PersonasService)));
     await app.init();
   });
 
@@ -58,24 +62,26 @@ describe('Contratos HTTP', () => {
   });
 
   it('permite GET /desafios sin body y con filtros opcionales', async () => {
-    desafios.listar.mockResolvedValue([]);
-    await request(app.getHttpServer()).get('/desafios').expect(200, []);
-    expect(desafios.listar).toHaveBeenLastCalledWith({});
+    const pagina = { items: [], pagina: 1, limite: 20, total: 0 };
+    desafios.listar.mockResolvedValue(pagina);
+    await request(app.getHttpServer()).get('/desafios').expect(200, pagina);
+    expect(desafios.listar).toHaveBeenLastCalledWith(expect.objectContaining({ pagina: 1, limite: 20 }), persona.toHexString());
     await request(app.getHttpServer())
       .get('/desafios')
-      .send({ estado: 'ACTIVO', categoria: 'SALUD' })
+      .query({ estado: 'ACTIVO', categoria: 'SALUD' })
       .expect(200);
     expect(desafios.listar).toHaveBeenLastCalledWith({
       estado: 'ACTIVO',
       categoria: 'SALUD',
-    });
+      pagina: 1, limite: 20,
+    }, persona.toHexString());
     await request(app.getHttpServer())
       .get('/desafios')
-      .send({ categoria: 'INVALIDA' })
+      .query({ categoria: 'INVALIDA' })
       .expect(400);
     await request(app.getHttpServer())
       .get('/desafios')
-      .send({ estado: null })
+      .query({ pagina: 0 })
       .expect(400);
     expect(desafios.listar).toHaveBeenCalledTimes(2);
   });
@@ -133,7 +139,7 @@ describe('Contratos HTTP', () => {
       .post('/participaciones')
       .send(dto)
       .expect(201);
-    expect(participaciones.unirse).toHaveBeenCalledWith(dto);
+    expect(participaciones.unirse).toHaveBeenCalledWith(dto, persona.toHexString());
     expect(respuesta.body).toMatchObject({
       persona: persona.toHexString(),
       desafio: desafio.toHexString(),
@@ -165,7 +171,7 @@ describe('Contratos HTTP', () => {
 
   it('consulta los desafíos y check-ins de una persona', async () => {
     desafios.listarPorPersona.mockResolvedValue([]);
-    checkin.listarPorDesafio.mockResolvedValue([]);
+    checkin.listarPorDesafio.mockResolvedValue({ items: [], pagina: 1, limite: 20, total: 0 });
     await request(app.getHttpServer())
       .get(`/desafios/persona/${persona}`)
       .expect(200, []);
@@ -174,10 +180,11 @@ describe('Contratos HTTP', () => {
     );
     await request(app.getHttpServer())
       .get(`/checkin/desafio/${desafio}/persona/${persona}`)
-      .expect(200, []);
+      .expect(200, { items: [], pagina: 1, limite: 20, total: 0 });
     expect(checkin.listarPorDesafio).toHaveBeenCalledWith(
       desafio.toHexString(),
       persona.toHexString(),
+      { pagina: 1, limite: 20 },
     );
   });
 });

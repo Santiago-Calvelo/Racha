@@ -77,9 +77,9 @@ describe('PersonasController', () => {
     servicio.remove.mockResolvedValueOnce(creada);
 
     expect(await controller.findOne(id)).toEqual(creada);
-    expect((await controller.update(id, { nombre: 'Ana P.' })).nombre).toBe(
+    expect((await controller.update(id, { nombre: 'Ana P.' }, id)).nombre).toBe(
       'Ana P.',
     );
-    expect(await controller.remove(id)).toEqual(creada);
+    expect(await controller.remove(id, id)).toEqual(creada);
   });
 });

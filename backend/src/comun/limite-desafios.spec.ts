@@ -79,7 +79,7 @@ describe('Límite de desafíos al crear', () => {
   };
 
   it('cuenta por participaciones activas, sin limitarse al creador del desafío', async () => {
-    await servicio.crear(dto());
+    await servicio.crear(dto(), String(persona));
     expect(personas.updateOne).toHaveBeenCalledWith(
       { _id: persona },
       { $inc: { __v: 1 } },
@@ -100,7 +100,7 @@ describe('Límite de desafíos al crear', () => {
 
   it('rechaza crear el sexto y libera la sesión sin insertar', async () => {
     desafios.countDocuments.mockReturnValueOnce(consulta(5));
-    await expect(servicio.crear(dto())).rejects.toThrow(ConflictException);
+    await expect(servicio.crear(dto(), String(persona))).rejects.toThrow(ConflictException);
     expect(desafios.create).not.toHaveBeenCalled();
     expect(participaciones.create).not.toHaveBeenCalled();
     expect(sesion.endSession).toHaveBeenCalled();

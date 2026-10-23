@@ -17,6 +17,15 @@ function coleccionDe(esquema: { options?: { collection?: string } }): string {
 }
 
 describe('índices únicos', () => {
+  it('declara referencias ObjectId, no campos Mixed sin conversión de IDs', () => {
+    for (const [esquema, campos] of [
+      [ParticipacionEsquema, ['persona', 'desafio']],
+      [CheckinEsquema, ['persona', 'desafio']],
+      [DesafioEsquema, ['creador']],
+    ] as const) {
+      for (const campo of campos) expect(esquema.path(campo).instance).toBe('ObjectId');
+    }
+  });
   it('personas: alias y email únicos, colección `personas`', () => {
     expect(coleccionDe(PersonaEsquema)).toBe('personas');
     const rutas = PersonaEsquema.paths as Record<

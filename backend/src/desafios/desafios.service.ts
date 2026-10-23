@@ -15,6 +15,8 @@ import {
 } from 'mongoose';
 import { CrearDesafioDto, FiltrarDesafiosDto } from './dto/crear-desafio.dto';
 import { ActualizarDesafioDto } from './dto/actualizar-desafio.dto';
+import { exigirMismaPersona } from '../comun/permisos';
+import { paginar } from '../comun/paginacion.dto';
 import {
   Desafio,
   DesafioDocumento,
@@ -55,7 +57,8 @@ export class DesafiosService {
    * que dejaría una ventana de carrera. El creador queda registrado como
    * participante dentro de la misma transacción.
    */
-  async crear(dto: CrearDesafioDto): Promise<Desafio> {
+  async crear(dto: CrearDesafioDto, usuarioId: string): Promise<Desafio> {
+    exigirMismaPersona(usuarioId, dto.creador);
     const creador = await this.obtenerPersona(dto.creador);
     const datos = validarFechasYCupo(dto, hoyReferencia());
 
@@ -119,20 +122,28 @@ export class DesafiosService {
     );
   }
 
-  async listar(filtros: FiltrarDesafiosDto = {}): Promise<Desafio[]> {
-    const desafios = await this.desafioModelo
-      .find(filtros.categoria ? { categoria: filtros.categoria } : {})
-      .lean()
-      .exec();
-    return desafios
-      .map((desafio) => ({
-        ...desafio,
-        estado: calcularEstadoDesafio(desafio),
-      }))
-      .filter(
-        (desafio) =>
-          filtros.estado === undefined || desafio.estado === filtros.estado,
-      );
+  async listar(filtros: Partial<FiltrarDesafiosDto> = {}, usuarioId?: string) {
+    const { pagina = 1, limite = 20, categoria, estado } = filtros;
+    const hoy = hoyReferencia();
+    const filtro: Record<string, unknown> = categoria ? { categoria } : {};
+    if (estado === 'CANCELADO') filtro.fechaCancelacion = { $ne: null };
+    if (estado && estado !== 'CANCELADO') {
+      filtro.fechaCancelacion = null;
+      if (estado === 'PROGRAMADO') filtro.fechaInicio = { $gt: hoy };
+      if (estado === 'FINALIZADO') filtro.fechaFin = { $lt: hoy };
+      if (estado === 'ACTIVO') { filtro.fechaInicio = { $lte: hoy }; filtro.fechaFin = { $gte: hoy }; }
+    }
+    const [total, desafios] = await Promise.all([
+      this.desafioModelo.countDocuments(filtro),
+      this.desafioModelo.find(filtro).sort({ fechaInicio: -1, _id: -1 })
+        .skip((pagina - 1) * limite).limit(limite).lean().exec(),
+    ]);
+    const participaciones = await this.participacionModelo.find({ desafio: { $in: desafios.map(d => d._id) } }).lean().exec();
+    const items = desafios.map(d => ({ ...d, estado: calcularEstadoDesafio(d),
+      participantesActivos: participaciones.filter(p => String(p.desafio) === String(d._id) && p.estado === 'ACTIVA').length,
+      miParticipacion: participaciones.find(p => String(p.desafio) === String(d._id) && String(p.persona) === usuarioId)?.estado ?? null,
+    }));
+    return paginar(items, total, { pagina, limite });
   }
 
   async listarPorPersona(personaId: string): Promise<Desafio[]> {
@@ -155,12 +166,12 @@ export class DesafiosService {
     }));
   }
 
-  async obtener(id: string): Promise<Desafio> {
+  async obtener(id: string) {
     const desafio = await this.buscarPorId(id);
     if (!desafio) {
       throw new NotFoundException(`Desafío #${id} no encontrado`);
     }
-    return desafio;
+    return { ...desafio, estado: calcularEstadoDesafio(desafio) };
   }
 
   /**
@@ -168,13 +179,14 @@ export class DesafiosService {
    * mientras el desafío esté PROGRAMADO. No permite reducir el cupo por
    * debajo de los participantes activos.
    */
-  async actualizar(id: string, dto: ActualizarDesafioDto): Promise<Desafio> {
+  async actualizar(id: string, dto: ActualizarDesafioDto, usuarioId: string): Promise<Desafio> {
     const desafio = await this.desafioModelo
       .findById(this.aObjectId(id))
       .exec();
     if (!desafio) {
       throw new NotFoundException(`Desafío #${id} no encontrado`);
     }
+    exigirMismaPersona(usuarioId, String(desafio.creador));
     if (calcularEstadoDesafio(desafio.toObject()) !== 'PROGRAMADO') {
       throw new ConflictException(
         'Solo se pueden modificar las fechas y los cupos mientras el desafío esté programado',
@@ -230,7 +242,8 @@ export class DesafiosService {
    * cancelarlo. Se persiste `fechaCancelacion`; el estado CANCELADO se
    * calcula desde ese campo.
    */
-  async cancelar(id: string, creador: string): Promise<Desafio> {
+  async cancelar(id: string, creador: string, usuarioId: string): Promise<Desafio> {
+    exigirMismaPersona(usuarioId, creador);
     const desafio = await this.desafioModelo
       .findById(this.aObjectId(id))
       .exec();

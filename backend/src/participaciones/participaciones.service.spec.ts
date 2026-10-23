@@ -84,7 +84,7 @@ describe('Unión por código de invitación', () => {
     participaciones.create.mockResolvedValue([
       { toObject: () => ({ persona, desafio }) },
     ]);
-    expect(await servicio.unirse(dto)).toEqual({ persona, desafio });
+    expect(await servicio.unirse(dto, dto.persona)).toEqual({ persona, desafio });
     expect(desafios.findOne).toHaveBeenCalledWith({
       codigoInvitacion: 'DEMOA1',
     });
@@ -107,7 +107,7 @@ describe('Unión por código de invitación', () => {
 
   it('rechaza una sexta participación vigente sin insertar y cierra la sesión', async () => {
     desafios.countDocuments.mockReturnValueOnce(consulta(5));
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
     expect(participaciones.create).not.toHaveBeenCalled();
     expect(sesion.endSession).toHaveBeenCalled();
   });
@@ -116,7 +116,7 @@ describe('Unión por código de invitación', () => {
     desafios.findOneAndUpdate.mockReturnValueOnce(
       consulta({ fechaCancelacion: new Date() }),
     );
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
     expect(participaciones.create).not.toHaveBeenCalled();
     desafios.findOneAndUpdate.mockReturnValueOnce(
       consulta({
@@ -128,22 +128,22 @@ describe('Unión por código de invitación', () => {
       }),
     );
     participaciones.countDocuments.mockResolvedValueOnce(2);
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
     expect(participaciones.create).not.toHaveBeenCalled();
   });
 
   it('devuelve 404 ante código inexistente y 409 ante cancelación, cupo o duplicidad', async () => {
     desafios.findOne.mockReturnValueOnce(consulta(null));
-    await expect(servicio.unirse(dto)).rejects.toThrow(NotFoundException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(NotFoundException);
     desafios.findOne.mockReturnValueOnce(
       consulta({ fechaCancelacion: new Date() }),
     );
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
     participaciones.countDocuments.mockResolvedValueOnce(10);
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
     participaciones.create.mockRejectedValueOnce(
       Object.assign(new Error('Duplicado'), { code: 11000 }),
     );
-    await expect(servicio.unirse(dto)).rejects.toThrow(ConflictException);
+    await expect(servicio.unirse(dto, dto.persona)).rejects.toThrow(ConflictException);
   });
 });

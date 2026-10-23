@@ -5,12 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   Error as MongooseError,
   Model,
   Types,
   isValidObjectId,
+  Connection,
+  ClientSession,
 } from 'mongoose';
 import { RegistrarCumplimientoDto } from './dto/registrar-cumplimiento.dto';
 import { DeshacerCumplimientoDto } from './dto/deshacer-cumplimiento.dto';
@@ -27,6 +29,9 @@ import {
 import { Participacion } from '../participaciones/entities/participacion.entity';
 import { NOTA_MAXIMA } from './checkin.constantes';
 import { diaEnZona } from '../comun/fechas';
+import { exigirMismaPersona } from '../comun/permisos';
+import { PaginacionDto, paginar } from '../comun/paginacion.dto';
+import { puntosPara, rachaHasta, moverDia } from '../estadisticas/metricas';
 
 @Injectable()
 export class CheckinService {
@@ -39,6 +44,7 @@ export class CheckinService {
     private readonly personaModelo: Model<PersonaDocumento>,
     @InjectModel(Participacion.name)
     private readonly participacionModelo: Model<ParticipacionDocumento>,
+    @InjectConnection() private readonly conexion: Connection,
   ) {}
 
   /**
@@ -47,10 +53,13 @@ export class CheckinService {
    * activa. El índice único { persona, desafio, dia } impide duplicados
    * del mismo día.
    */
-  async registrar(dto: RegistrarCumplimientoDto): Promise<Checkin> {
+  async registrar(dto: RegistrarCumplimientoDto, usuarioId: string): Promise<Checkin> {
+    exigirMismaPersona(usuarioId, dto.persona);
+    return this.escribir(dto, async sesion => {
     const persona = await this.obtenerPersona(dto.persona);
-    const desafio = await this.obtenerDesafio(dto.desafio);
-    await this.exigirParticipacionActiva(dto.persona, desafio._id);
+    const desafio = await this.desafioModelo.findById(dto.desafio).session(sesion).lean().exec();
+    if (!desafio) throw new NotFoundException('El desafío no existe');
+    await this.exigirParticipacionActiva(dto.persona, desafio._id, sesion);
     if (calcularEstadoDesafio(desafio) === 'CANCELADO') {
       throw new ConflictException(
         'No se puede registrar cumplimiento en un desafío cancelado',
@@ -58,10 +67,7 @@ export class CheckinService {
     }
 
     const hoy = diaEnZona(new Date(), persona.zonaHoraria);
-    const ayer = diaEnZona(
-      new Date(Date.now() - 86_400_000),
-      persona.zonaHoraria,
-    );
+    const ayer = moverDia(hoy, -1);
     const dia = this.diaPermitido(dto, hoy, ayer);
     if (dia < desafio.fechaInicio || dia > desafio.fechaFin) {
       throw new BadRequestException(
@@ -72,13 +78,16 @@ export class CheckinService {
     const valor = this.validarValor(dto.valor);
 
     try {
-      const creado = await this.checkinModelo.create({
+      const anteriores = await this.checkinModelo.find({ persona: persona._id, desafio: desafio._id, dia: { $lt: dia } }).session(sesion).lean().exec();
+      const puntos = puntosPara(1 + rachaHasta(new Set(anteriores.map(r => r.dia)), moverDia(dia, -1)));
+      const [creado] = await this.checkinModelo.create([{
         persona: persona._id,
         desafio: desafio._id,
         dia,
         nota,
         valor,
-      });
+        puntos,
+      }], { session: sesion });
       return creado.toObject() as Checkin;
     } catch (error) {
       if (this.esDuplicado(error)) {
@@ -91,6 +100,7 @@ export class CheckinService {
       }
       throw error instanceof Error ? error : new Error(String(error));
     }
+    });
   }
 
   /**
@@ -98,7 +108,9 @@ export class CheckinService {
    * si corresponde al día actual de la persona. No existen ediciones
    * arbitrarias: los documentos son inmutables.
    */
-  async deshacer(dto: DeshacerCumplimientoDto): Promise<Checkin> {
+  async deshacer(dto: DeshacerCumplimientoDto, usuarioId: string): Promise<Checkin> {
+    exigirMismaPersona(usuarioId, dto.persona);
+    return this.escribir(dto, async sesion => {
     const persona = await this.obtenerPersona(dto.persona);
     const desafio = await this.obtenerDesafio(dto.desafio);
     const hoy = diaEnZona(new Date(), persona.zonaHoraria);
@@ -106,6 +118,7 @@ export class CheckinService {
     const ultimo = await this.checkinModelo
       .findOne({ persona: persona._id, desafio: desafio._id })
       .sort({ dia: -1 })
+      .session(sesion)
       .lean()
       .exec();
     if (!ultimo) {
@@ -119,26 +132,42 @@ export class CheckinService {
       );
     }
     await this.checkinModelo
-      .deleteOne({ _id: ultimo._id as Types.ObjectId })
+      .deleteOne({ _id: ultimo._id as Types.ObjectId }, { session: sesion })
       .exec();
     return ultimo as Checkin;
+    });
+  }
+
+  private async escribir<T>(dto: DeshacerCumplimientoDto, operacion: (sesion: ClientSession) => Promise<T>): Promise<T> {
+    const sesion = await this.conexion.startSession();
+    try {
+      return await sesion.withTransaction(async () => {
+        // Serializa check-ins/deshacer por persona y coordina cancelación/unión.
+        await this.personaModelo.updateOne({ _id: dto.persona }, { $inc: { __v: 1 } }, { session: sesion });
+        await this.desafioModelo.updateOne({ _id: dto.desafio }, { $inc: { __v: 1 } }, { session: sesion });
+        return operacion(sesion);
+      });
+    } finally { await sesion.endSession(); }
   }
 
   /** Historial de checkins de un desafío ordenado por día. */
   async listarPorDesafio(
     desafioId: string,
     personaId?: string,
-  ): Promise<Checkin[]> {
+    pagina: PaginacionDto = new PaginacionDto(),
+  ) {
     const desafio = await this.obtenerDesafio(desafioId);
     if (personaId !== undefined) await this.obtenerPersona(personaId);
-    return this.checkinModelo
-      .find({
+    const filtro = {
         desafio: desafio._id,
         ...(personaId === undefined ? {} : { persona: personaId }),
-      })
-      .sort({ dia: 1 })
-      .lean()
-      .exec();
+    };
+    const [total, items] = await Promise.all([
+      this.checkinModelo.countDocuments(filtro),
+      this.checkinModelo.find(filtro).sort({ dia: -1, _id: -1 })
+        .skip((pagina.pagina - 1) * pagina.limite).limit(pagina.limite).lean().exec(),
+    ]);
+    return paginar(items, total, pagina);
   }
 
   private diaPermitido(
@@ -190,6 +219,7 @@ export class CheckinService {
   private async exigirParticipacionActiva(
     personaId: string,
     desafioId: Types.ObjectId,
+    sesion: ClientSession,
   ): Promise<void> {
     const participacion = await this.participacionModelo
       .findOne({
@@ -197,6 +227,7 @@ export class CheckinService {
         desafio: desafioId,
         estado: EstadoParticipacion.ACTIVA,
       })
+      .session(sesion)
       .lean()
       .exec();
     if (!participacion) {

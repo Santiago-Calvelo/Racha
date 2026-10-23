@@ -19,6 +19,7 @@ import {
 } from '../desafios/entities/desafio.entity';
 import { Persona, PersonaDocumento } from '../personas/entities/persona.entity';
 import { verificarTopeVigentes } from '../comun/limite-desafios';
+import { exigirMismaPersona } from '../comun/permisos';
 
 @Injectable()
 export class ParticipacionesService {
@@ -39,7 +40,8 @@ export class ParticipacionesService {
    * activos se controla escribiendo el desafío antes del conteo dentro
    * de la transacción; el límite de vigentes se coordina por persona.
    */
-  async unirse(dto: UnirseDesafioDto): Promise<Participacion> {
+  async unirse(dto: UnirseDesafioDto, usuarioId: string): Promise<Participacion> {
+    exigirMismaPersona(usuarioId, dto.persona);
     await this.obtenerPersona(dto.persona);
     const desafio = await this.desafioModelo
       .findOne({ codigoInvitacion: dto.codigoInvitacion })
@@ -129,7 +131,9 @@ export class ParticipacionesService {
   async abandonar(
     desafioId: string,
     personaId: string,
+    usuarioId: string,
   ): Promise<Participacion> {
+    exigirMismaPersona(usuarioId, personaId);
     const desafio = await this.obtenerDesafio(desafioId);
     await this.obtenerPersona(personaId);
     const participacion = await this.participacionModelo

@@ -11,6 +11,7 @@ import { PersonasService } from './personas.service';
 import { CreatePersonaDto } from './dto/create-persona.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
 import { MongoIdPipe } from '../comun/mongo-id.pipe';
+import { UsuarioId } from '../comun/usuario.guard';
 
 @Controller('personas')
 export class PersonasController {
@@ -35,12 +36,13 @@ export class PersonasController {
   update(
     @Param('id', MongoIdPipe) id: string,
     @Body() updatePersonaDto: UpdatePersonaDto,
+    @UsuarioId() usuarioId: string,
   ) {
-    return this.personasService.update(id, updatePersonaDto);
+    return this.personasService.update(id, updatePersonaDto, usuarioId);
   }
 
   @Delete(':id')
-  remove(@Param('id', MongoIdPipe) id: string) {
-    return this.personasService.remove(id);
+  remove(@Param('id', MongoIdPipe) id: string, @UsuarioId() usuarioId: string) {
+    return this.personasService.remove(id, usuarioId);
   }
 }

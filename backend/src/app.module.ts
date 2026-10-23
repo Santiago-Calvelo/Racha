@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { UsuarioGuard } from './comun/usuario.guard';
+import { resolve } from 'node:path';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,17 +12,23 @@ import { DesafiosModule } from './desafios/desafios.module';
 import { ParticipacionesModule } from './participaciones/participaciones.module';
 import { CheckinModule } from './checkin/checkin.module';
 import { SeedService } from './configuracion/seed.service';
+import { EstadisticasModule } from './estadisticas/estadisticas.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validarEntorno }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: resolve(__dirname, '../../.env'),
+      validate: validarEntorno,
+    }),
     BaseDatosModule,
     PersonasModule,
     DesafiosModule,
     ParticipacionesModule,
     CheckinModule,
+    EstadisticasModule,
   ],
   controllers: [AppController],
-  providers: [AppService, SeedService],
+  providers: [AppService, SeedService, { provide: APP_GUARD, useClass: UsuarioGuard }],
 })
 export class AppModule {}

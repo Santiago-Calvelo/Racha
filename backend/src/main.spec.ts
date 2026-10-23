@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { SeedService } from './configuracion/seed.service';
+import { PuntosHistoricosService } from './estadisticas/puntos-historicos.service';
 
 describe('Arranque HTTP', () => {
   it('espera la precarga antes de escuchar peticiones', async () => {
@@ -23,7 +24,8 @@ describe('Arranque HTTP', () => {
       }),
     };
     const modulo = await Test.createTestingModule({
-      providers: [{ provide: SeedService, useValue: seed }],
+      providers: [{ provide: SeedService, useValue: seed },
+        { provide: PuntosHistoricosService, useValue: { completar: jest.fn().mockResolvedValue(undefined) } }],
     }).compile();
     const app = modulo.createNestApplication();
     const crear = jest.spyOn(NestFactory, 'create').mockResolvedValue(app);

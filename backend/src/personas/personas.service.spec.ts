@@ -299,7 +299,7 @@ describe('PersonasService', () => {
       const actualizada = await service.update(idDe(creada), {
         nombre: 'Ana P.',
         zonaHoraria: 'America/New_York',
-      });
+      }, idDe(creada));
 
       expect(actualizada).toMatchObject({
         nombre: 'Ana P.',
@@ -313,7 +313,7 @@ describe('PersonasService', () => {
       const creada = await service.create(dtoValido);
 
       await expect(
-        service.update(idDe(creada), { nombre: '' }),
+        service.update(idDe(creada), { nombre: '' }, idDe(creada)),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -327,7 +327,7 @@ describe('PersonasService', () => {
 
       const actualizada = await service.update(idDe(segunda), {
         nombre: 'Otro nombre',
-      });
+      }, idDe(segunda));
       expect(actualizada.alias).toBe('otra_persona');
       expect(actualizada.email).toBe('otra@example.com');
     });
@@ -337,16 +337,17 @@ describe('PersonasService', () => {
 
       const actualizada = await service.update(idDe(creada), {
         nombre: 'Ana Pérez Jr.',
-      });
+      }, idDe(creada));
 
       expect(actualizada.nombre).toBe('Ana Pérez Jr.');
     });
 
     it('lanza NotFound cuando la persona no existe', async () => {
+      const id = new Types.ObjectId().toHexString();
       await expect(
-        service.update(new Types.ObjectId().toHexString(), {
+        service.update(id, {
           nombre: 'Nadie',
-        }),
+        }, id),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -356,14 +357,15 @@ describe('PersonasService', () => {
       const creada = await service.create(dtoValido);
       const id = idDe(creada);
 
-      expect(await service.remove(id)).toEqual(creada);
+      expect(await service.remove(id, id)).toEqual(creada);
       expect(await service.findAll()).toHaveLength(0);
       await expect(service.findOne(id)).rejects.toThrow(NotFoundException);
     });
 
     it('lanza NotFound cuando la persona no existe', async () => {
+      const id = new Types.ObjectId().toHexString();
       await expect(
-        service.remove(new Types.ObjectId().toHexString()),
+        service.remove(id, id),
       ).rejects.toThrow(NotFoundException);
     });
   });

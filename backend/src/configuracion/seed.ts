@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { resolve } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,7 +16,11 @@ import {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validarEntorno }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: resolve(__dirname, '../../../.env'),
+      validate: validarEntorno,
+    }),
     BaseDatosModule,
     MongooseModule.forFeature([
       { name: Persona.name, schema: PersonaEsquema },
