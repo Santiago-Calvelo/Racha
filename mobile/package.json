@@ -4,29 +4,32 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.2.1",
     "expo": "~58.0.17",
     "expo-constants": "~58.0.13",
+    "expo-dev-client": "~58.0.18",
     "expo-linking": "~58.0.14",
     "expo-router": "~58.0.25",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
     "react-native": "0.88.0",
+    "react-native-auth0": "^6.2.0",
     "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "~4.30.0"
+    "react-native-screens": "~4.30.0",
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "react-dom": "19.3.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "node --env-file-if-exists=../.env node_modules/expo/bin/cli start",
+    "start": "node --env-file-if-exists=.env node_modules/expo/bin/cli start --dev-client",
     "android": "npm run start -- --android",
     "ios": "npm run start -- --ios",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.cjs",
-    "export:android": "node --env-file-if-exists=../.env node_modules/expo/bin/cli export --platform android"
+    "export:android": "node --env-file-if-exists=.env node_modules/expo/bin/cli export --platform android"
   },
   "private": true
 }

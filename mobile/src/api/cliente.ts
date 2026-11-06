@@ -2,29 +2,20 @@ import type { Validador } from './tipos';
 
 const configuracion = {
   baseUrl: process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, ''),
+  wsUrl: process.env.EXPO_PUBLIC_WS_URL?.trim().replace(/\/+$/, ''),
   timeout: 10_000,
 };
-let usuarioId =
-  process.env.EXPO_PUBLIC_USUARIO_INICIAL_ID?.trim().toLowerCase() ?? '';
-
-export function obtenerUsuarioId(): string {
-  if (!/^[a-f\d]{24}$/.test(usuarioId)) {
-    throw new Error(
-      'Configurá EXPO_PUBLIC_USUARIO_INICIAL_ID con una persona existente en el .env raíz y reiniciá Expo.',
-    );
-  }
-  return usuarioId;
+type ObtenerToken = (forzar?: boolean, rechazado?: string) => Promise<string>;
+let tokenSesion: ObtenerToken = async () => { throw new Error('Iniciá sesión para continuar.'); };
+let sesionVencida: () => Promise<void> = async () => {};
+export function configurarAutenticacion(token: ObtenerToken, vencida: () => Promise<void>) {
+  tokenSesion = token;
+  sesionVencida = vencida;
 }
-
-export function seleccionarUsuario(id: string): void {
-  if (!/^[a-f\d]{24}$/i.test(id))
-    throw new Error('El usuario debe tener un id de MongoDB válido.');
-  usuarioId = id.toLowerCase();
-}
-
-export function restablecerUsuarioInicial(): void {
-  usuarioId =
-    process.env.EXPO_PUBLIC_USUARIO_INICIAL_ID?.trim().toLowerCase() ?? '';
+export const baseUrlApi = () => configuracion.baseUrl;
+export const baseUrlWs = () => configuracion.wsUrl || configuracion.baseUrl;
+export class SesionVencida extends Error {
+  constructor() { super('Tu sesión venció. Volvé a ingresar.'); this.name = 'SesionVencida'; }
 }
 
 export class ErrorApi extends Error {
@@ -38,6 +29,7 @@ export class ErrorApi extends Error {
 }
 
 function mensajeError(datos: unknown, status: number): string {
+  if (status >= 500) return 'El servidor no pudo completar el pedido. Volvé a intentar en unos instantes.';
   if (typeof datos === 'object' && datos !== null && 'message' in datos) {
     if (typeof datos.message === 'string') return datos.message;
     if (
@@ -70,9 +62,11 @@ export const cliente = {
       !configuracion.baseUrl ||
       !/^https?:\/\/[^\s]+$/.test(configuracion.baseUrl)
     ) {
-      throw new Error('Configurá EXPO_PUBLIC_API_URL en el .env raíz.');
+      throw new Error('Configurá EXPO_PUBLIC_API_URL en mobile/.env.');
     }
-    const identidad = obtenerUsuarioId();
+    let token: string;
+    try { token = await tokenSesion(); }
+    catch { await sesionVencida(); throw new SesionVencida(); }
     const controller = new AbortController();
     const cancelar = () => controller.abort();
     opciones.signal?.addEventListener('abort', cancelar, { once: true });
@@ -83,16 +77,24 @@ export const cliente = {
       cancelar();
     }, configuracion.timeout);
     try {
-      const respuesta = await fetch(`${configuracion.baseUrl}${ruta}`, {
+      const enviar = (credencial: string) => fetch(`${configuracion.baseUrl}${ruta}`, {
         method: opciones.metodo ?? 'GET',
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          'x-usuario-id': identidad,
+          Authorization: `Bearer ${credencial}`,
           ...(opciones.cuerpo ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(opciones.cuerpo ? { body: JSON.stringify(opciones.cuerpo) } : {}),
       });
+      let respuesta = await enviar(token);
+      if (respuesta.status === 401) {
+        try { token = await tokenSesion(true, token); }
+        catch { await sesionVencida(); throw new SesionVencida(); }
+        if (controller.signal.aborted) throw new Error('El pedido fue cancelado.');
+        respuesta = await enviar(token);
+        if (respuesta.status === 401) { await sesionVencida(); throw new SesionVencida(); }
+      }
       const texto = await respuesta.text();
       let datos: unknown;
       try {

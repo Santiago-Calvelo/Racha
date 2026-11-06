@@ -1,4 +1,4 @@
-import { cliente, obtenerUsuarioId } from './cliente';
+import { cliente } from './cliente';
 import { esParticipacion, esParticipacionConPersona, listaDe } from './tipos';
 
 export const unirseADesafio = (
@@ -7,12 +7,12 @@ export const unirseADesafio = (
 ) =>
   cliente.pedir('/participaciones', esParticipacion, {
     metodo: 'POST',
-    cuerpo: { persona: obtenerUsuarioId(), codigoInvitacion },
+    cuerpo: { codigoInvitacion },
     signal,
   });
 export const abandonarDesafio = (desafioId: string, signal?: AbortSignal) =>
   cliente.pedir(
-    `/desafios/${encodeURIComponent(desafioId)}/participaciones/${obtenerUsuarioId()}/abandonar`,
+    `/desafios/${encodeURIComponent(desafioId)}/abandonar`,
     esParticipacion,
     { metodo: 'POST', signal },
   );

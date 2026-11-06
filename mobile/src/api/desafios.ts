@@ -1,4 +1,4 @@
-import { cliente, obtenerUsuarioId } from './cliente';
+import { cliente } from './cliente';
 import {
   esDesafio,
   esDesafioListado,
@@ -38,7 +38,7 @@ export const obtenerDesafio = (id: string, signal?: AbortSignal) =>
 export const crearDesafio = (datos: CrearDesafio, signal?: AbortSignal) =>
   cliente.pedir('/desafios', esDesafio, {
     metodo: 'POST',
-    cuerpo: { ...datos, creador: obtenerUsuarioId() },
+    cuerpo: datos,
     signal,
   });
 export const editarDesafio = (
@@ -54,6 +54,5 @@ export const editarDesafio = (
 export const cancelarDesafio = (id: string, signal?: AbortSignal) =>
   cliente.pedir(`/desafios/${encodeURIComponent(id)}/cancelar`, esDesafio, {
     metodo: 'POST',
-    cuerpo: { creador: obtenerUsuarioId() },
     signal,
   });

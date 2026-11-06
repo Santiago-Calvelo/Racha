@@ -17,9 +17,9 @@ function Navegacion() {
         />
         {sesion.error && (
           <Boton
-            titulo="Elegir otro perfil"
+            titulo="Volver al ingreso"
             secundario
-            onPress={() => void sesion.salir().catch(sesion.reintentar)}
+            onPress={() => void sesion.invalidar().catch(sesion.reintentar)}
           />
         )}
       </Pantalla>
@@ -35,7 +35,10 @@ function Navegacion() {
         <Stack.Screen name="bienvenida" />
         <Stack.Screen name="ingreso" />
       </Stack.Protected>
-      <Stack.Protected guard={!!sesion.persona}>
+      <Stack.Protected guard={!!sesion.persona && !sesion.persona.alias}>
+        <Stack.Screen name="completar-alias" />
+      </Stack.Protected>
+      <Stack.Protected guard={!!sesion.persona?.alias}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="desafio/[id]" />
         <Stack.Screen name="checkin/[id]" />

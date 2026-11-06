@@ -6,8 +6,8 @@ export type EstadoDesafio =
 export interface Persona {
   id: string;
   nombre: string;
-  alias: string;
-  email: string;
+  alias?: string;
+  email?: string;
   zonaHoraria: string;
 }
 export interface CrearPersona {
@@ -84,7 +84,7 @@ const opcionalTexto = (v: unknown) => v === undefined || typeof v === 'string';
 const textoONulo = (v: unknown) => v === null || typeof v === 'string';
 
 export const esPersona: Validador<Persona> = (v): v is Persona =>
-  objeto(v) && textos(v, ['id', 'nombre', 'alias', 'email', 'zonaHoraria']);
+  objeto(v) && textos(v, ['id', 'nombre', 'zonaHoraria']) && opcionalTexto(v.alias) && opcionalTexto(v.email);
 export const esDesafio: Validador<Desafio> = (v): v is Desafio =>
   objeto(v) &&
   textos(v, [

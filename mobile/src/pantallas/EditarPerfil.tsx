@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { editarPersona } from '../api/personas';
 import { useSesion } from '../sesion';
 import { useAccion } from '../hooks/useConsulta';
-import { validarPerfil, zonas } from '../validaciones';
+import { validarEdicionPerfil, zonas } from '../validaciones';
 import {
   Boton,
   Cabecera,
@@ -57,7 +57,7 @@ export default function EditarPerfil() {
         ocupado={accion.ocupado}
         onPress={() => {
           if (!p) return;
-          const fallos = validarPerfil({ ...p, nombre, zonaHoraria: zona });
+          const fallos = validarEdicionPerfil({ nombre, zonaHoraria: zona });
           setErrores(fallos);
           if (Object.keys(fallos).length) return;
           void accion.ejecutar(async () => {

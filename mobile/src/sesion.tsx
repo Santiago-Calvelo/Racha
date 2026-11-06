@@ -1,17 +1,7 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type PropsWithChildren,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  ErrorApi,
-  restablecerUsuarioInicial,
-  seleccionarUsuario,
-} from './api/cliente';
-import { obtenerPersona } from './api/personas';
+import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import { configurarAutenticacion, SesionVencida } from './api/cliente';
+import { obtenerMe } from './api/personas';
+import { borrarCredenciales, cerrarSesion, haySesion, ingresarGoogle, obtenerToken } from './auth/credenciales';
 import type { Persona } from './api/tipos';
 import { mensaje } from './hooks/useConsulta';
 
@@ -19,14 +9,13 @@ interface Sesion {
   persona: Persona | null;
   cargando: boolean;
   error: string | null;
-  elegir: (persona: Persona) => Promise<void>;
+  ingresar: () => Promise<void>;
   salir: () => Promise<void>;
+  invalidar: () => Promise<void>;
   reintentar: () => void;
   actualizar: (persona: Persona) => void;
 }
 const Contexto = createContext<Sesion | null>(null);
-const clave = 'racha.persona';
-
 export function SesionProvider({ children }: PropsWithChildren) {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -34,59 +23,35 @@ export function SesionProvider({ children }: PropsWithChildren) {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
+    configurarAutenticacion(obtenerToken, async () => {
+      try { await borrarCredenciales(); }
+      finally { setPersona(null); setCargando(false); setError(null); }
+    });
     setCargando(true);
     setError(null);
     (async () => {
-      const id = await AsyncStorage.getItem(clave);
-      if (controller.signal.aborted) return;
-      if (id) {
-        seleccionarUsuario(id);
-        try {
-          const p = await obtenerPersona(id, controller.signal);
-          if (!controller.signal.aborted) setPersona(p);
-        } catch (e) {
-          if (e instanceof ErrorApi && e.status === 404) {
-            await AsyncStorage.removeItem(clave);
-            restablecerUsuarioInicial();
-          } else throw e;
-        }
-      } else restablecerUsuarioInicial();
-    })()
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(mensaje(e));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setCargando(false);
-      });
+      if (await haySesion()) {
+        const p = await obtenerMe(controller.signal);
+        if (!controller.signal.aborted) setPersona(p);
+      }
+    })().catch(e => { if (!controller.signal.aborted && !(e instanceof SesionVencida)) setError(mensaje(e)); })
+      .finally(() => { if (!controller.signal.aborted) setCargando(false); });
     return () => controller.abort();
   }, [version]);
-  const elegir = async (p: Persona) => {
-    await AsyncStorage.setItem(clave, p.id);
-    seleccionarUsuario(p.id);
-    setPersona(p);
+  const ingresar = async () => {
+    await ingresarGoogle();
+    setPersona(await obtenerMe());
   };
   const salir = async () => {
-    await AsyncStorage.removeItem(clave);
-    restablecerUsuarioInicial();
-    setPersona(null);
-    setError(null);
-    setCargando(false);
+    try { await cerrarSesion(); }
+    finally { setPersona(null); setError(null); setCargando(false); }
   };
-  return (
-    <Contexto.Provider
-      value={{
-        persona,
-        cargando,
-        error,
-        elegir,
-        salir,
-        reintentar: () => setVersion((v) => v + 1),
-        actualizar: setPersona,
-      }}
-    >
-      {children}
-    </Contexto.Provider>
-  );
+  const invalidar = async () => {
+    try { await borrarCredenciales(); }
+    finally { setPersona(null); setError(null); setCargando(false); }
+  };
+  return <Contexto.Provider value={{ persona, cargando, error, ingresar, salir, invalidar,
+    reintentar: () => setVersion(v => v + 1), actualizar: setPersona }}>{children}</Contexto.Provider>;
 }
 export function useSesion() {
   const sesion = useContext(Contexto);

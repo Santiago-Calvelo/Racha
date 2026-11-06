@@ -10,6 +10,7 @@ import type { DesafioListado } from '../api/tipos';
 import { useSesion } from '../sesion';
 import { useAccion, useConsulta } from '../hooks/useConsulta';
 import { usePagina } from '../hooks/usePagina';
+import { emojisAliento, useTiempoReal } from '../hooks/useTiempoReal';
 import {
   Boton,
   Cabecera,
@@ -163,7 +164,9 @@ function Resumen({
     </>
   );
 }
-function Participantes({ id }: { id: string }) {
+function Participantes({ id, alentar, conectado }: { id: string; alentar: (destinatario: string, emoji: string) => Promise<void>; conectado: boolean }) {
+  const { persona } = useSesion();
+  const accion = useAccion();
   const consulta = useConsulta(
     useCallback((s: AbortSignal) => listarParticipantes(id, s), [id]),
   );
@@ -190,8 +193,16 @@ function Participantes({ id }: { id: string }) {
           <Text style={estilos.texto}>
             {p.persona ? `@${p.persona.alias}` : ''}
           </Text>
+          {p.persona && p.persona.id !== persona?.id && conectado && (
+            <View style={{ gap: 8 }}>
+              <Text style={estilos.etiqueta}>Enviar aliento</Text>
+              {emojisAliento.map(emoji => <Boton key={emoji} titulo={emoji} secundario
+                ocupado={accion.ocupado} onPress={() => void accion.ejecutar(() => alentar(p.persona!.id, emoji))} />)}
+            </View>
+          )}
         </View>
       ))}
+      <ErrorTexto texto={accion.error} />
     </>
   );
 }
@@ -290,6 +301,7 @@ function Historial({ id }: { id: string }) {
   );
 }
 export default function Detalle() {
+  const sesion = useSesion();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tab, setTab] = useState('Resumen');
   const [revision, setRevision] = useState(0);
@@ -297,13 +309,20 @@ export default function Detalle() {
     useCallback((s: AbortSignal) => obtenerDesafio(id, s), [id]),
   );
   const accion = useAccion();
-  const refrescar = () => {
-    consulta.refrescar();
+  const refrescarConsulta = consulta.refrescar;
+  const refrescar = useCallback(() => {
+    refrescarConsulta();
     setRevision((v) => v + 1);
-  };
+  }, [refrescarConsulta]);
+  const tiempo = useTiempoReal(id, sesion.persona?.id ?? '', refrescar, sesion.invalidar);
   return (
     <Pantalla refrescar={refrescar} cargando={consulta.cargando}>
       <Cabecera titulo="Tu desafío" volver />
+      {tiempo.aviso && <Text accessibilityLiveRegion="polite" style={estilos.etiqueta}>{tiempo.aviso}</Text>}
+      {tiempo.error && <>
+        <ErrorTexto texto={tiempo.error} />
+        <Boton titulo="Reconectar" secundario onPress={tiempo.reintentar} />
+      </>}
       <Estado
         cargando={consulta.cargando}
         error={consulta.error}
@@ -344,7 +363,7 @@ export default function Detalle() {
             {tab === 'Resumen' && (
               <Resumen desafio={consulta.datos} refrescar={refrescar} />
             )}
-            {tab === 'Participantes' && <Participantes id={id} />}
+            {tab === 'Participantes' && <Participantes id={id} alentar={tiempo.alentar} conectado={tiempo.conectado} />}
             {tab === 'Ranking' && <Ranking id={id} />}
             {tab === 'Historial' && <Historial id={id} />}
           </View>

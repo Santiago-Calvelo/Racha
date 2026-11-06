@@ -1,4 +1,4 @@
-import { cliente, obtenerUsuarioId } from './cliente';
+import { cliente } from './cliente';
 import { esCheckin, paginaDe } from './tipos';
 import type { RegistrarCheckin } from './tipos';
 
@@ -8,13 +8,13 @@ export const registrarCheckin = (
 ) =>
   cliente.pedir('/checkin', esCheckin, {
     metodo: 'POST',
-    cuerpo: { ...datos, persona: obtenerUsuarioId() },
+    cuerpo: datos,
     signal,
   });
 export const deshacerCheckin = (desafio: string, signal?: AbortSignal) =>
   cliente.pedir('/checkin/ultimo', esCheckin, {
     metodo: 'DELETE',
-    cuerpo: { desafio, persona: obtenerUsuarioId() },
+    cuerpo: { desafio },
     signal,
   });
 export const listarCheckins = (

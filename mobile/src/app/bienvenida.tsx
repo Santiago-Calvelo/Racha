@@ -23,15 +23,10 @@ export default function Bienvenida() {
         />
         <View style={{ gap: 12 }}>
           <Boton
-            titulo="Crear perfil"
+            titulo="Continuar con Google"
             onPress={() =>
-              router.push({ pathname: '/ingreso', params: { crear: '1' } })
+              router.push('/ingreso')
             }
-          />
-          <Boton
-            titulo="Elegir mi perfil"
-            secundario
-            onPress={() => router.push('/ingreso')}
           />
         </View>
         <Text style={[estilos.texto, { textAlign: 'center' }]}>

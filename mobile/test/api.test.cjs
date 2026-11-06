@@ -10,7 +10,6 @@ function cargarApi(fetch, opciones = {}) {
   const cache = new Map();
   const entorno = {
     EXPO_PUBLIC_API_URL: 'http://api.test',
-    EXPO_PUBLIC_USUARIO_INICIAL_ID: '0123456789abcdef01234567',
     ...opciones.entorno,
   };
   function cargar(nombre) {
@@ -44,6 +43,7 @@ function cargarApi(fetch, opciones = {}) {
     );
     return modulo.exports;
   }
+  cargar('cliente').configurarAutenticacion(opciones.token ?? (async () => 'token-prueba'), opciones.vencida ?? (async () => {}));
   return cargar;
 }
 const json = (datos, status = 200) => ({
@@ -59,33 +59,20 @@ const persona = {
   zonaHoraria: 'UTC',
 };
 
-test('agrega identidad y JSON en todos los métodos y refleja el cambio de persona', async () => {
+test('envia Bearer en todos los metodos y usa /me para la persona autenticada', async () => {
   const pedidos = [];
-  const api = cargarApi(async (url, init) => {
-    pedidos.push({ url, ...init });
-    return json(persona);
-  });
-  const personas = api('personas');
-  await personas.obtenerPersona(persona.id);
-  await personas.crearPersona({
-    nombre: 'Ana',
-    alias: 'ana',
-    email: persona.email,
-  });
-  api('cliente').seleccionarUsuario('abcdef0123456789abcdef01');
-  await personas.editarPersona(persona.id, { nombre: 'Otro' });
-  await personas.eliminarPersona(persona.id);
-  assert.deepEqual(
-    pedidos.map((p) => p.method),
-    ['GET', 'POST', 'PATCH', 'DELETE'],
-  );
-  assert.equal(pedidos[0].headers['x-usuario-id'], persona.id);
-  assert.equal(pedidos[2].headers['x-usuario-id'], 'abcdef0123456789abcdef01');
-  assert.equal(pedidos[1].headers['Content-Type'], 'application/json');
+  const api = cargarApi(async (url, init) => { pedidos.push({ url, ...init }); return json(persona); });
+  await api('personas').obtenerMe();
+  await api('personas').elegirAlias('ana');
+  await api('personas').editarPersona(persona.id, { nombre: 'Otro' });
+  assert.deepEqual(pedidos.map(p => p.method), ['GET', 'PATCH', 'PATCH']);
+  assert.ok(pedidos.every(p => p.headers.Authorization === 'Bearer token-prueba'));
+  assert.ok(pedidos.every(p => !('x-usuario-id' in p.headers)));
+  assert.equal(pedidos[2].url, 'http://api.test/me');
   assert.equal(JSON.parse(pedidos[2].body).nombre, 'Otro');
 });
 
-test('los recursos envían a la persona activa en cuerpos y rutas', async () => {
+test('los recursos omiten al actor en cuerpos y rutas', async () => {
   const pedidos = [];
   const api = cargarApi(async (url, init) => {
     pedidos.push({ url, ...init });
@@ -128,13 +115,13 @@ test('los recursos envían a la persona activa en cuerpos y rutas', async () => 
   await api('participaciones').abandonarDesafio('reto');
   await api('checkins').registrarCheckin({ desafio: 'reto' });
   await api('checkins').deshacerCheckin('reto');
-  assert.equal(JSON.parse(pedidos[0].body).creador, persona.id);
+  assert.equal(JSON.parse(pedidos[0].body).creador, undefined);
   for (const i of [1, 3, 4])
-    assert.equal(JSON.parse(pedidos[i].body).persona, persona.id);
+    assert.equal(JSON.parse(pedidos[i].body).persona, undefined);
   assert.ok(
-    pedidos[2].url.includes(`/participaciones/${persona.id}/abandonar`),
+    pedidos[2].url.endsWith('/desafios/reto/abandonar'),
   );
-  assert.ok(pedidos.every((p) => p.headers['x-usuario-id'] === persona.id));
+  assert.ok(pedidos.every((p) => p.headers.Authorization === 'Bearer token-prueba'));
 });
 
 test('propaga status y mensajes de error del back, incluidos errores no JSON', async () => {
@@ -143,7 +130,7 @@ test('propaga status y mensajes de error del back, incluidos errores no JSON', a
       json({ message: ['Dato inválido', 'Otra regla'] }, status),
     );
     await assert.rejects(
-      api('personas').listarPersonas(),
+      api('personas').obtenerMe(),
       (e) => e.status === status && e.message.includes('Otra regla'),
     );
   }
@@ -153,35 +140,62 @@ test('propaga status y mensajes de error del back, incluidos errores no JSON', a
     text: async () => 'Unavailable',
   }));
   await assert.rejects(
-    api('personas').listarPersonas(),
+    api('personas').obtenerMe(),
     (e) => e.status === 503,
   );
 });
 
 test('rechaza respuestas incompatibles y acepta listas vacías', async () => {
   const api = cargarApi(async () => json([{ id: 'incompleto' }]));
-  await assert.rejects(api('personas').listarPersonas(), /formato inválido/);
+  await assert.rejects(api('personas').obtenerMe(), /formato inválido/);
   const vacio = cargarApi(async () =>
     json({ items: [], pagina: 1, limite: 20, total: 0 }),
   );
   assert.equal((await vacio('desafios').listarDesafios()).items.length, 0);
 });
 
-test('no envía pedidos sin URL o identidad inicial válida', async () => {
-  for (const entorno of [
-    { EXPO_PUBLIC_USUARIO_INICIAL_ID: '' },
-    { EXPO_PUBLIC_API_URL: '' },
-  ]) {
-    let enviados = 0;
-    const api = cargarApi(
-      async () => {
-        enviados++;
-        return json([]);
-      },
-      { entorno },
-    );
-    await assert.rejects(api('personas').listarPersonas(), /Configurá/);
-    assert.equal(enviados, 0);
+test('no envia pedidos sin URL o sin sesion', async () => {
+  let enviados = 0;
+  const transporte = async () => { enviados++; return json(persona); };
+  const sinUrl = cargarApi(transporte, { entorno: { EXPO_PUBLIC_API_URL: '' } });
+  await assert.rejects(sinUrl('personas').obtenerMe(), /Configur/);
+  let vencida = 0;
+  const sinSesion = cargarApi(transporte, { token: async () => { throw new Error('sin sesion'); }, vencida: async () => { vencida++; } });
+  await assert.rejects(sinSesion('personas').obtenerMe(), /Volv/);
+  assert.equal(enviados, 0);
+  assert.equal(vencida, 1);
+});
+
+test('permite separar Socket.IO de HTTP y conserva la URL de API como respaldo', () => {
+  const separado = cargarApi(async () => json(persona), { entorno: { EXPO_PUBLIC_WS_URL: ' https://socket.test/ ' } });
+  assert.equal(separado('cliente').baseUrlWs(), 'https://socket.test');
+  assert.equal(separado('cliente').baseUrlApi(), 'http://api.test');
+  const respaldo = cargarApi(async () => json(persona), { entorno: { EXPO_PUBLIC_WS_URL: ' ' } });
+  assert.equal(respaldo('cliente').baseUrlWs(), 'http://api.test');
+});
+
+test('renueva una vez ante 401 y reintenta con el nuevo token', async () => {
+  const tokens = [];
+  let renovaciones = 0;
+  const api = cargarApi(async (_url, init) => {
+    tokens.push(init.headers.Authorization);
+    return tokens.length === 1 ? json({ message: 'Vencido' }, 401) : json(persona);
+  }, { token: async forzar => { if (forzar) renovaciones++; return forzar ? 'nuevo' : 'viejo'; } });
+  await api('personas').obtenerMe();
+  assert.deepEqual(tokens, ['Bearer viejo', 'Bearer nuevo']);
+  assert.equal(renovaciones, 1);
+});
+
+test('si falla renovar o el reintento vuelve a dar 401, cierra la sesion sin bucles', async () => {
+  for (const falla of [true, false]) {
+    let pedidos = 0, cierres = 0;
+    const api = cargarApi(async () => { pedidos++; return json({ message: 'Sesion invalida' }, 401); }, {
+      token: async forzar => { if (forzar && falla) throw new Error('refresh invalido'); return 'token'; },
+      vencida: async () => { cierres++; },
+    });
+    await assert.rejects(api('personas').obtenerMe());
+    assert.equal(pedidos, falla ? 1 : 2);
+    assert.equal(cierres, 1);
   }
 });
 
@@ -189,7 +203,7 @@ test('distingue caída de red, timeout y cancelación del solicitante', async ()
   const red = cargarApi(async () => {
     throw new TypeError('offline');
   });
-  await assert.rejects(red('personas').listarPersonas(), /No se pudo conectar/);
+  await assert.rejects(red('personas').obtenerMe(), /No se pudo conectar/);
   const esperar = (_url, { signal }) =>
     new Promise((_resolve, reject) => {
       const cancelar = () => reject(new Error('cancelado'));
@@ -199,10 +213,10 @@ test('distingue caída de red, timeout y cancelación del solicitante', async ()
   const timeout = cargarApi(esperar, {
     setTimeout: (callback) => setTimeout(callback, 5),
   });
-  await assert.rejects(timeout('personas').listarPersonas(), /diez segundos/);
+  await assert.rejects(timeout('personas').obtenerMe(), /diez segundos/);
   const cancelacion = cargarApi(esperar);
   const controller = new AbortController();
-  const pendiente = cancelacion('personas').listarPersonas(controller.signal);
+  const pendiente = cancelacion('personas').obtenerMe(controller.signal);
   controller.abort();
   await assert.rejects(pendiente, /cancelado/);
 });

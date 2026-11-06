@@ -70,7 +70,7 @@ export default function Perfil() {
       )}
       <ErrorTexto texto={accion.error} />
       <Boton
-        titulo="Cambiar de perfil"
+        titulo="Cerrar sesión"
         secundario
         ocupado={accion.ocupado}
         onPress={() =>

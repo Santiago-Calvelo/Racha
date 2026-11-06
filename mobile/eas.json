@@ -1,0 +1,5 @@
+{
+  "build": {
+    "development": { "developmentClient": true, "distribution": "internal", "environment": "development" }
+  }
+}

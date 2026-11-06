@@ -27,12 +27,16 @@ export const moverDia = (dia: string, n: number) =>
     .toISOString()
     .slice(0, 10);
 export function validarPerfil(v: CrearPersona) {
-  const errores: Record<string, string> = {};
-  if (!v.nombre.trim()) errores.nombre = 'Ingresá tu nombre.';
+  const errores = validarEdicionPerfil(v);
   if (!/^[A-Za-z0-9_]{3,20}$/.test(v.alias))
     errores.alias = 'Usá entre 3 y 20 letras, números o guion bajo.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email))
     errores.email = 'Ingresá un email válido.';
+  return errores;
+}
+export function validarEdicionPerfil(v: { nombre: string; zonaHoraria?: string }) {
+  const errores: Record<string, string> = {};
+  if (!v.nombre.trim()) errores.nombre = 'Ingresá tu nombre.';
   try {
     if (/^[+-]/.test(v.zonaHoraria ?? '')) throw new Error();
     new Intl.DateTimeFormat('en', { timeZone: v.zonaHoraria });
