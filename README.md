@@ -107,28 +107,32 @@ npx eas-cli@latest build --platform android --profile development
 Este comando requiere una cuenta Expo y configurar el proyecto al primer uso.
 Instalar el APK resultante en el emulador o dispositivo. Para iOS usar un entorno
 compatible y un build firmado. `mobile/eas.json` contiene el perfil development.
-Como alternativa, si tenés Android Studio, JDK y SDK instalados, abrir un emulador
-desde Device Manager y compilar/instalar localmente desde la raíz:
+Como alternativa local, si tenés Android Studio, SDK y un dispositivo virtual
+creado (o un teléfono con depuración USB), desde la raíz basta con:
 
 ```powershell
-cd mobile
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:Path = "$env:ANDROID_HOME\emulator;$env:ANDROID_HOME\platform-tools;$env:Path"
-node --env-file=.env node_modules/expo/bin/cli run:android
+npm run android
 ```
 
-El comando local también inicia Metro. Esperar a que el emulador termine de
-arrancar; si `emulator` no se encuentra, revisar `ANDROID_HOME` y `Path` según la
+Ese comando carga `mobile/.env`, detecta el SDK en su ubicación habitual (o usa
+ANDROID_HOME/ANDROID_SDK_ROOT), prepara Path y usa el JDK de Android Studio si no
+hay JAVA_HOME configurado. Expo selecciona/inicia el emulador, compila e instala
+el development build y levanta Metro. No cambia las variables permanentes del
+sistema. El SDK y el dispositivo virtual deben existir; ver la
 [guía de Android de Expo](https://docs.expo.dev/workflow/android-studio-emulator/).
-Después, desde la raíz y en terminales separadas:
+
+Para levantar ambos servicios, desde la raíz y en terminales separadas:
 
 ```powershell
 npm run start
-# En otra terminal, con el development build ya instalado:
+# En otra terminal:
 npm run android
 # Para celular físico, en lugar de android:
 npm run mobile
 ```
+
+`npm run mobile` inicia solo Metro para un development build ya instalado.
+`npm run android` también se ocupa de compilar/instalar y usa compilación incremental.
 
 El backend valida entorno, prepara índices, ejecuta seed y completa puntos antiguos
 antes de escuchar HTTP. Metro inicia con `--dev-client`: abrir el development build

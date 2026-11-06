@@ -392,3 +392,24 @@ Verificaciones:
 Pendientes: verificación real de Parte III en el development build, selección de
 commits y creación de tags de entrega; Parte IV y sus tres documentos/versionado.
 No se reescribió historial, no se publicó ni se hizo un envío a WebCampus.
+
+## Arranque simple y separación de commits (2026-11-06)
+
+El programador pidió un comando por servicio y commits separados para el trabajo
+realizado. Se organizaron por backend, app móvil, documentación de entrega y
+arranque local, conservando el historial existente y los .env locales ignorados.
+
+- Desde la raíz: `npm run start` para backend (incluye Socket.IO) y, en otra
+  terminal, `npm run android` para la app Android y Metro.
+- `mobile/scripts/android.mjs` encuentra el SDK por ANDROID_HOME/ANDROID_SDK_ROOT
+  o ubicación habitual. Prepara Path solo en el proceso hijo y usa el JDK incluido
+  en Android Studio si JAVA_HOME no está configurado. No instala herramientas ni
+  cambia el entorno permanente. Expo run:android gestiona emulador/build/instalación.
+- El script raíz reenvía argumentos; `npm run mobile` conserva el arranque de solo
+  Metro para un development build ya instalado. Lint incluye el nuevo script.
+- Comprobados sintaxis Node, lint, TypeScript móvil y `npm run android -- --help`:
+  la ruta completa npm → script → Expo funciona. SDK, JDK de Android Studio 21.0.9
+  y AVD Medium_Phone_API_36 disponibles. No se inició una compilación nativa ni
+  el backend real durante esta preparación de commits; el recorrido sigue pendiente.
+- Antes de cada commit se revisó el índice: ningún .env real, coincidencia con
+  secretos locales, clave privada ni JWT literal. No se crearon tags ni se publicó.

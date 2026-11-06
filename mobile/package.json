@@ -25,7 +25,7 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env node_modules/expo/bin/cli start --dev-client",
-    "android": "npm run start -- --android",
+    "android": "node --env-file-if-exists=.env scripts/android.mjs",
     "ios": "npm run start -- --ios",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.cjs",

@@ -7,13 +7,13 @@
     "setup": "npm ci --prefix backend && npm ci --prefix mobile",
     "start": "npm --prefix backend run start",
     "mobile": "npm --prefix mobile run start --",
-    "android": "npm --prefix mobile run android",
+    "android": "npm --prefix mobile run android --",
     "seed": "npm --prefix backend run seed",
     "build": "npm --prefix backend run build",
     "test": "npm --prefix backend test -- --runInBand",
     "test:e2e": "npm --prefix backend run test:e2e -- --runInBand",
     "test:mobile": "npm --prefix mobile test",
     "typecheck": "npm --prefix mobile run typecheck",
-    "lint": "node backend/node_modules/oxlint/bin/oxlint backend/src backend/test mobile/src mobile/test"
+    "lint": "node backend/node_modules/oxlint/bin/oxlint backend/src backend/test mobile/src mobile/test mobile/scripts"
   }
 }
