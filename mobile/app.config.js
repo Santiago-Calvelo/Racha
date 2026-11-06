@@ -8,6 +8,7 @@ module.exports = ({ config }) => {
     plugins: [
       ...(config.plugins ?? []).filter(p => (Array.isArray(p) ? p[0] : p) !== 'react-native-auth0'),
       ['react-native-auth0', { domain, customScheme: 'racha' }],
+      ['expo-build-properties', { android: { minSdkVersion: 26 } }],
     ],
   };
 };
