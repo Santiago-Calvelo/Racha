@@ -1,34 +1,42 @@
 import {
-  BadRequestException,
+  ForbiddenException,
   CanActivate,
   ExecutionContext,
   Injectable,
   createParamDecorator,
+  SetMetadata,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { PersonasService } from '../personas/personas.service';
+import { Reflector } from '@nestjs/core';
+import type { Types } from 'mongoose';
+import type { Persona } from '../personas/entities/persona.entity';
+import { TokenService } from '../auth/token.service';
+import { PersonaAuthService } from '../auth/persona-auth.service';
+
+export interface PeticionAutenticada extends Request {
+  persona: Persona & { _id: Types.ObjectId };
+}
+export const Publica = () => SetMetadata('publica', true);
 
 export const UsuarioId = createParamDecorator(
   (_: unknown, contexto: ExecutionContext): string => {
-    const request = contexto.switchToHttp().getRequest<Request>();
-    return String(request.headers['x-usuario-id']).toLowerCase();
+    return String(contexto.switchToHttp().getRequest<PeticionAutenticada>().persona._id);
   },
 );
 
-/** Identificación provisoria: no autentica la identidad del remitente. */
+/** La identidad solo se obtiene del access token validado. */
 @Injectable()
 export class UsuarioGuard implements CanActivate {
-  constructor(private readonly personas: PersonasService) {}
+  constructor(private readonly tokens: TokenService, private readonly personas: PersonaAuthService, private readonly reflector: Reflector) {}
 
   async canActivate(contexto: ExecutionContext): Promise<boolean> {
-    const request = contexto.switchToHttp().getRequest<Request>();
-    const id = request.headers['x-usuario-id'];
-    if (typeof id !== 'string' || !/^[a-f\d]{24}$/i.test(id)) {
-      throw new BadRequestException(
-        'El header x-usuario-id es obligatorio y debe ser un ObjectId válido',
-      );
-    }
-    await this.personas.findOne(id.toLowerCase());
+    if (contexto.getType() !== 'http') return true;
+    if (this.reflector.getAllAndOverride<boolean>('publica', [contexto.getHandler(), contexto.getClass()])) return true;
+    const request = contexto.switchToHttp().getRequest<PeticionAutenticada>();
+    const token = /^Bearer ([^\s]+)$/i.exec(request.headers.authorization ?? '')?.[1] ?? '';
+    request.persona = await this.personas.resolver(await this.tokens.verificar(token), token);
+    if (!request.persona.alias && !/^\/me(?:\/alias)?\/?$/.test(request.path))
+      throw new ForbiddenException('Elegí un alias para completar tu perfil');
     return true;
   }
 }

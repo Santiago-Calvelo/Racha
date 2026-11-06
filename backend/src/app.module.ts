@@ -13,12 +13,14 @@ import { ParticipacionesModule } from './participaciones/participaciones.module'
 import { CheckinModule } from './checkin/checkin.module';
 import { SeedService } from './configuracion/seed.service';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
+import { AuthModule } from './auth/auth.module';
+import { TiempoRealModule } from './tiempo-real/tiempo-real.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: resolve(__dirname, '../../.env'),
+      envFilePath: resolve(__dirname, '../.env'),
       validate: validarEntorno,
     }),
     BaseDatosModule,
@@ -27,6 +29,8 @@ import { EstadisticasModule } from './estadisticas/estadisticas.module';
     ParticipacionesModule,
     CheckinModule,
     EstadisticasModule,
+    AuthModule,
+    TiempoRealModule,
   ],
   controllers: [AppController],
   providers: [AppService, SeedService, { provide: APP_GUARD, useClass: UsuarioGuard }],

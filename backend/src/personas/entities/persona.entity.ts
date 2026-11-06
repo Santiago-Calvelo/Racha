@@ -7,8 +7,8 @@ export type PersonaDocumento = HydratedDocument<Persona>;
 
 /**
  * Esquema `Persona` (colección `personas`).
- * Alias y email se normalizan a minúsculas y son únicos mediante
- * índices reales de MongoDB, no solo validación de Mongoose.
+ * Alias único al completar el perfil. La identidad social se vincula por
+ * emisor/sujeto; el email solo es único entre perfiles antiguos sin emisor.
  */
 @Schema({ collection: 'personas' })
 export class Persona {
@@ -16,10 +16,8 @@ export class Persona {
   nombre: string;
 
   @Prop({
-    required: [true, 'El alias es obligatorio'],
     trim: true,
     lowercase: true,
-    unique: true,
     minlength: [3, 'El alias debe tener entre 3 y 20 caracteres'],
     maxlength: [20, 'El alias debe tener entre 3 y 20 caracteres'],
     match: [
@@ -30,16 +28,21 @@ export class Persona {
   alias: string;
 
   @Prop({
-    required: [true, 'El email es obligatorio'],
     trim: true,
     lowercase: true,
-    unique: true,
     match: [
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       'El email no tiene un formato válido',
     ],
   })
   email: string;
+
+  @Prop({ immutable: true })
+  emisor?: string;
+  @Prop({ immutable: true })
+  sujeto?: string;
+  @Prop({ immutable: true })
+  proveedor?: string;
 
   /** Nombre IANA, p. ej. `America/Argentina/Buenos_Aires`. */
   @Prop({
@@ -56,3 +59,7 @@ export class Persona {
 }
 
 export const PersonaEsquema = SchemaFactory.createForClass(Persona);
+PersonaEsquema.index({ alias: 1 }, { unique: true, partialFilterExpression: { alias: { $type: 'string' } } });
+// Las identidades externas nunca se vinculan por coincidencia de email.
+PersonaEsquema.index({ email: 1 }, { unique: true, name: 'email_legacy_unique', partialFilterExpression: { emisor: null } });
+PersonaEsquema.index({ emisor: 1, sujeto: 1 }, { unique: true, partialFilterExpression: { sujeto: { $type: 'string' } } });

@@ -12,5 +12,10 @@ export function validarEntorno(
         'Definila con la URI de MongoDB Atlas (ver .env.example).',
     );
   }
-  return { MONGODB_URI: uri.trim() };
+  const domain = config['AUTH0_DOMAIN'];
+  const audience = config['AUTH0_AUDIENCE'];
+  if (typeof domain !== 'string' || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain))
+    throw new Error('Falta AUTH0_DOMAIN o no es un dominio válido (sin https:// ni /)');
+  if (typeof audience !== 'string' || !audience.trim()) throw new Error('Falta AUTH0_AUDIENCE');
+  return { MONGODB_URI: uri.trim(), AUTH0_DOMAIN: domain, AUTH0_AUDIENCE: audience.trim() };
 }

@@ -1,11 +1,8 @@
 import {
   Controller,
   Get,
-  Post,
   Body,
-  Patch,
   Param,
-  Delete,
 } from '@nestjs/common';
 import { PersonasService } from './personas.service';
 import { CreatePersonaDto } from './dto/create-persona.dto';
@@ -17,12 +14,10 @@ import { UsuarioId } from '../comun/usuario.guard';
 export class PersonasController {
   constructor(private readonly personasService: PersonasService) {}
 
-  @Post()
   create(@Body() createPersonaDto: CreatePersonaDto) {
     return this.personasService.create(createPersonaDto);
   }
 
-  @Get()
   findAll() {
     return this.personasService.findAll();
   }
@@ -32,7 +27,6 @@ export class PersonasController {
     return this.personasService.findOne(id);
   }
 
-  @Patch(':id')
   update(
     @Param('id', MongoIdPipe) id: string,
     @Body() updatePersonaDto: UpdatePersonaDto,
@@ -41,7 +35,6 @@ export class PersonasController {
     return this.personasService.update(id, updatePersonaDto, usuarioId);
   }
 
-  @Delete(':id')
   remove(@Param('id', MongoIdPipe) id: string, @UsuarioId() usuarioId: string) {
     return this.personasService.remove(id, usuarioId);
   }

@@ -1,23 +1,22 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { PaginacionDto } from '../comun/paginacion.dto';
 import { CheckinService } from './checkin.service';
-import { RegistrarCumplimientoDto } from './dto/registrar-cumplimiento.dto';
-import { DeshacerCumplimientoDto } from './dto/deshacer-cumplimiento.dto';
 import { MongoIdPipe } from '../comun/mongo-id.pipe';
 import { UsuarioId } from '../comun/usuario.guard';
+import { RegistrarHttpDto, DeshacerHttpDto } from '../auth/contratos';
 
 @Controller('checkin')
 export class CheckinController {
   constructor(private readonly checkinService: CheckinService) {}
 
   @Post()
-  registrar(@Body() dto: RegistrarCumplimientoDto, @UsuarioId() usuarioId: string) {
-    return this.checkinService.registrar(dto, usuarioId);
+  registrar(@Body() dto: RegistrarHttpDto, @UsuarioId() usuarioId: string) {
+    return this.checkinService.registrar({ ...dto, persona: usuarioId }, usuarioId);
   }
 
   @Delete('ultimo')
-  deshacer(@Body() dto: DeshacerCumplimientoDto, @UsuarioId() usuarioId: string) {
-    return this.checkinService.deshacer(dto, usuarioId);
+  deshacer(@Body() dto: DeshacerHttpDto, @UsuarioId() usuarioId: string) {
+    return this.checkinService.deshacer({ ...dto, persona: usuarioId }, usuarioId);
   }
 
   @Get('desafio/:desafioId')

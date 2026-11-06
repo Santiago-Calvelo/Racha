@@ -64,21 +64,22 @@ describe('PersonasService', () => {
       findById: jest.fn((id: string) =>
         consulta(almacen.find((p) => p._id.toHexString() === id) ?? null),
       ),
-      findByIdAndUpdate: jest.fn((id: string, datos: Persona) => {
+      findByIdAndUpdate: jest.fn((id: string, datos: Partial<Persona>) => {
         const indice = almacen.findIndex((p) => p._id.toHexString() === id);
         if (indice === -1) {
           return consulta(null);
         }
         const resto = almacen.filter((_, i) => i !== indice);
+        const nuevos = { ...almacen[indice], ...datos };
         if (
-          resto.some((p) => p.alias.toLowerCase() === datos.alias.toLowerCase())
+          resto.some((p) => p.alias.toLowerCase() === nuevos.alias.toLowerCase())
         ) {
-          throw errorDuplicado('alias', datos.alias);
+          throw errorDuplicado('alias', nuevos.alias);
         }
         if (
-          resto.some((p) => p.email.toLowerCase() === datos.email.toLowerCase())
+          resto.some((p) => p.email.toLowerCase() === nuevos.email.toLowerCase())
         ) {
-          throw errorDuplicado('email', datos.email);
+          throw errorDuplicado('email', nuevos.email);
         }
         almacen[indice] = { ...almacen[indice], ...datos };
         return consulta({ ...almacen[indice] });

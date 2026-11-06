@@ -1,3 +1,7 @@
+import { Reflector } from '@nestjs/core';
+import { TokenService } from '../src/auth/token.service';
+import { PersonaAuthService } from '../src/auth/persona-auth.service';
+import { AuthController } from '../src/auth/auth.controller';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Types } from 'mongoose';
@@ -17,7 +21,7 @@ describe('Contratos HTTP', () => {
   let app: INestApplication;
   const persona = new Types.ObjectId();
   const request = (servidor: Parameters<typeof supertest>[0]) =>
-    supertest.agent(servidor).set('x-usuario-id', persona.toHexString());
+    supertest.agent(servidor).set('Authorization', 'Bearer token-prueba');
   const desafio = new Types.ObjectId();
   const personas = { create: jest.fn(), update: jest.fn(), findOne: jest.fn().mockResolvedValue({ _id: persona }) };
   const desafios = {
@@ -31,13 +35,14 @@ describe('Contratos HTTP', () => {
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({
       controllers: [
-        PersonasController,
+        PersonasController, AuthController,
         DesafiosController,
         ParticipacionesController,
         CheckinController,
       ],
       providers: [
         { provide: PersonasService, useValue: personas },
+        { provide: PersonaAuthService, useValue: {} },
         { provide: DesafiosService, useValue: desafios },
         { provide: ParticipacionesService, useValue: participaciones },
         { provide: CheckinService, useValue: checkin },
@@ -52,7 +57,7 @@ describe('Contratos HTTP', () => {
       }),
     );
     app.useGlobalInterceptors(new RespuestaInterceptor());
-    app.useGlobalGuards(new UsuarioGuard(modulo.get(PersonasService)));
+    app.useGlobalGuards(new UsuarioGuard({ verificar: async () => ({}) } as unknown as TokenService, { resolver: async () => ({ _id: persona, alias: 'ana' }) } as unknown as PersonaAuthService, new Reflector()));
     await app.init();
   });
 
@@ -111,18 +116,18 @@ describe('Contratos HTTP', () => {
   it('rechaza propiedades adicionales y permite editar solo nombre y zona horaria', async () => {
     for (const campo of ['alias', 'email']) {
       await request(app.getHttpServer())
-        .patch(`/personas/${persona}`)
+        .patch('/me')
         .send({ [campo]: 'nuevo' })
         .expect(400);
     }
     expect(personas.update).not.toHaveBeenCalled();
     personas.update.mockResolvedValue({ _id: persona, nombre: 'Ana', __v: 0 });
     await request(app.getHttpServer())
-      .patch(`/personas/${persona}`)
+      .patch('/me')
       .send({ nombre: 'Ana', zonaHoraria: 'America/Argentina/Buenos_Aires' })
       .expect(200, { id: persona.toHexString(), nombre: 'Ana' });
     await request(app.getHttpServer())
-      .patch(`/personas/${persona}`)
+      .patch('/me')
       .send({ zonaHoraria: '+05:30' })
       .expect(400);
   });
@@ -134,12 +139,12 @@ describe('Contratos HTTP', () => {
       desafio,
       __v: 0,
     });
-    const dto = { persona: persona.toHexString(), codigoInvitacion: 'DEMOA1' };
+    const dto = { codigoInvitacion: 'DEMOA1' };
     const respuesta = await request(app.getHttpServer())
       .post('/participaciones')
       .send(dto)
       .expect(201);
-    expect(participaciones.unirse).toHaveBeenCalledWith(dto, persona.toHexString());
+    expect(participaciones.unirse).toHaveBeenCalledWith({ ...dto, persona: persona.toHexString() }, persona.toHexString());
     expect(respuesta.body).toMatchObject({
       persona: persona.toHexString(),
       desafio: desafio.toHexString(),

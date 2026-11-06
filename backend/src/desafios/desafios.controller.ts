@@ -1,20 +1,20 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { DesafiosService } from './desafios.service';
-import { CrearDesafioDto, FiltrarDesafiosDto } from './dto/crear-desafio.dto';
+import { FiltrarDesafiosDto } from './dto/crear-desafio.dto';
 import {
   ActualizarDesafioDto,
-  CancelarDesafioDto,
 } from './dto/actualizar-desafio.dto';
 import { MongoIdPipe } from '../comun/mongo-id.pipe';
 import { UsuarioId } from '../comun/usuario.guard';
+import { CrearDesafioHttpDto, CancelarHttpDto } from '../auth/contratos';
 
 @Controller('desafios')
 export class DesafiosController {
   constructor(private readonly desafiosService: DesafiosService) {}
 
   @Post()
-  crear(@Body() dto: CrearDesafioDto, @UsuarioId() usuarioId: string) {
-    return this.desafiosService.crear(dto, usuarioId);
+  crear(@Body() dto: CrearDesafioHttpDto, @UsuarioId() usuarioId: string) {
+    return this.desafiosService.crear({ ...dto, creador: usuarioId }, usuarioId);
   }
 
   @Get()
@@ -44,9 +44,9 @@ export class DesafiosController {
   @Post(':id/cancelar')
   cancelar(
     @Param('id', MongoIdPipe) id: string,
-    @Body() cuerpo: CancelarDesafioDto,
+    @Body() _cuerpo: CancelarHttpDto,
     @UsuarioId() usuarioId: string,
   ) {
-    return this.desafiosService.cancelar(id, cuerpo.creador, usuarioId);
+    return this.desafiosService.cancelar(id, usuarioId, usuarioId);
   }
 }

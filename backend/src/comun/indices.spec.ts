@@ -26,14 +26,14 @@ describe('índices únicos', () => {
       for (const campo of campos) expect(esquema.path(campo).instance).toBe('ObjectId');
     }
   });
-  it('personas: alias y email únicos, colección `personas`', () => {
+  it('personas: alias e identidad externa únicos con perfiles incompletos', () => {
     expect(coleccionDe(PersonaEsquema)).toBe('personas');
-    const rutas = PersonaEsquema.paths as Record<
-      string,
-      { options?: { unique?: boolean } }
-    >;
-    expect(rutas['alias']?.options?.unique).toBe(true);
-    expect(rutas['email']?.options?.unique).toBe(true);
+    expect(indicesDe(PersonaEsquema)).toContainEqual({
+      campos: { alias: 1 }, opciones: { unique: true, partialFilterExpression: { alias: { $type: 'string' } } },
+    });
+    expect(indicesDe(PersonaEsquema)).toContainEqual({
+      campos: { emisor: 1, sujeto: 1 }, opciones: { unique: true, partialFilterExpression: { sujeto: { $type: 'string' } } },
+    });
   });
 
   it('desafios: codigoInvitacion único, colección `desafios`', () => {

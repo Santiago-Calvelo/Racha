@@ -1,3 +1,4 @@
+import { IndicesAuthService } from './auth/indices-auth.service';
 import { NestFactory } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { SeedService } from './configuracion/seed.service';
@@ -24,7 +25,7 @@ describe('Arranque HTTP', () => {
       }),
     };
     const modulo = await Test.createTestingModule({
-      providers: [{ provide: SeedService, useValue: seed },
+      providers: [{ provide: IndicesAuthService, useValue: { preparar: jest.fn().mockResolvedValue(undefined) } }, { provide: SeedService, useValue: seed },
         { provide: PuntosHistoricosService, useValue: { completar: jest.fn().mockResolvedValue(undefined) } }],
     }).compile();
     const app = modulo.createNestApplication();
@@ -34,6 +35,10 @@ describe('Arranque HTTP', () => {
       return app.getHttpServer();
     });
     const uriAnterior = process.env.MONGODB_URI;
+    const dominioAnterior = process.env.AUTH0_DOMAIN;
+    const audienciaAnterior = process.env.AUTH0_AUDIENCE;
+    process.env.AUTH0_DOMAIN = 'test.auth0.com';
+    process.env.AUTH0_AUDIENCE = 'https://racha.api';
     process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/racha-arranque-test';
     try {
       require('./main');
@@ -50,6 +55,10 @@ describe('Arranque HTTP', () => {
       await app.close();
       if (uriAnterior === undefined) delete process.env.MONGODB_URI;
       else process.env.MONGODB_URI = uriAnterior;
+      if (dominioAnterior === undefined) delete process.env.AUTH0_DOMAIN;
+      else process.env.AUTH0_DOMAIN = dominioAnterior;
+      if (audienciaAnterior === undefined) delete process.env.AUTH0_AUDIENCE;
+      else process.env.AUTH0_AUDIENCE = audienciaAnterior;
     }
   });
 });

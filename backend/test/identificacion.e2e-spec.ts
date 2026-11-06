@@ -1,144 +1,77 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import request from 'supertest';
 import { UsuarioGuard } from '../src/comun/usuario.guard';
-import { PersonasController } from '../src/personas/personas.controller';
+import { TokenService } from '../src/auth/token.service';
+import { PersonaAuthService } from '../src/auth/persona-auth.service';
+import { AuthController } from '../src/auth/auth.controller';
 import { PersonasService } from '../src/personas/personas.service';
-import { Persona } from '../src/personas/entities/persona.entity';
 import { DesafiosController } from '../src/desafios/desafios.controller';
 import { DesafiosService } from '../src/desafios/desafios.service';
-import { Desafio } from '../src/desafios/entities/desafio.entity';
 import { ParticipacionesController } from '../src/participaciones/participaciones.controller';
 import { ParticipacionesService } from '../src/participaciones/participaciones.service';
-import { Participacion } from '../src/participaciones/entities/participacion.entity';
 import { CheckinController } from '../src/checkin/checkin.controller';
 import { CheckinService } from '../src/checkin/checkin.service';
-import { Checkin } from '../src/checkin/entities/checkin.entity';
 
-describe('Identificación provisoria y permisos HTTP con services reales', () => {
+describe('Identidad autenticada HTTP', () => {
   let app: INestApplication;
-  const usuario = new Types.ObjectId().toHexString();
-  const otraPersona = new Types.ObjectId().toHexString();
+  const id = new Types.ObjectId().toHexString();
   const desafio = new Types.ObjectId().toHexString();
-  const consulta = (valor: unknown) => ({
-    exec: async () => valor,
-    lean: () => ({ exec: async () => valor }),
-  });
-  const crear = jest.fn();
-  const guardar = jest.fn();
-  const personas = {
-    findById: jest.fn((id: string) =>
-      consulta(
-        [usuario, otraPersona].includes(id)
-          ? { _id: id, nombre: 'Persona' }
-          : null,
-      ),
-    ),
-    find: () => consulta([]),
-    create: crear,
-    findByIdAndUpdate: guardar,
-    findByIdAndDelete: guardar,
-  };
-  const desafios = {
-    findById: () => consulta({ _id: desafio, creador: otraPersona }),
-    create: crear,
-    find: () => consulta([]),
-  };
-
+  const persona = { _id: id, nombre: 'Ana', alias: 'ana' as string | undefined };
+  const crear = jest.fn().mockResolvedValue({});
+  const unir = jest.fn().mockResolvedValue({});
+  const abandonar = jest.fn().mockResolvedValue({});
+  const registrar = jest.fn().mockResolvedValue({});
+  const tokens = { verificar: async (token: string) => {
+    if (token !== 'valido') throw new UnauthorizedException('La sesión no es válida');
+    return { emisor: 'https://test.auth0.com/', sujeto: 'google-oauth2|123', expira: 9999999999 };
+  } };
+  const personas = { resolver: async () => persona, alias: jest.fn() };
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({
-      controllers: [
-        PersonasController,
-        DesafiosController,
-        ParticipacionesController,
-        CheckinController,
-      ],
+      controllers: [AuthController, DesafiosController, ParticipacionesController, CheckinController],
       providers: [
-        PersonasService,
-        DesafiosService,
-        ParticipacionesService,
-        CheckinService,
-        { provide: getModelToken(Persona.name), useValue: personas },
-        { provide: getModelToken(Desafio.name), useValue: desafios },
-        {
-          provide: getModelToken(Participacion.name),
-          useValue: { create: crear },
-        },
-        { provide: getModelToken(Checkin.name), useValue: { create: crear } },
-        { provide: getConnectionToken(), useValue: {} },
+        { provide: PersonasService, useValue: {} }, { provide: PersonaAuthService, useValue: personas },
+        { provide: DesafiosService, useValue: { crear, listar: async () => [] } },
+        { provide: ParticipacionesService, useValue: { unirse: unir, abandonar } },
+        { provide: CheckinService, useValue: { registrar } },
       ],
     }).compile();
     app = modulo.createNestApplication();
-    app.useGlobalGuards(new UsuarioGuard(modulo.get(PersonasService)));
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    app.useGlobalGuards(new UsuarioGuard(tokens as TokenService, personas as unknown as PersonaAuthService, new Reflector()));
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
   });
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => { jest.clearAllMocks(); persona.alias = 'ana'; });
   afterAll(async () => app.close());
-
-  it('exige un header válido, también en lecturas y creación de personas', async () => {
-    await request(app.getHttpServer()).get('/desafios').expect(400);
-    await request(app.getHttpServer())
-      .get('/personas')
-      .set('x-usuario-id', 'mal')
-      .expect(400);
-    await request(app.getHttpServer()).post('/personas').send({}).expect(400);
-    await request(app.getHttpServer())
-      .get('/personas')
-      .set('x-usuario-id', new Types.ObjectId().toHexString())
-      .expect(404);
-    await request(app.getHttpServer())
-      .get('/personas')
-      .set('x-usuario-id', usuario)
-      .expect(200, []);
+  it('devuelve 401 para ausencia/token inválido y ya no acepta el header provisional', async () => {
+    await request(app.getHttpServer()).get('/me').expect(401);
+    await request(app.getHttpServer()).get('/me').set('Authorization', 'Bearer vencido').expect(401);
+    await request(app.getHttpServer()).get('/me').set('x-usuario-id', id).expect(401);
+    await request(app.getHttpServer()).get('/me').set('Authorization', 'Bearer valido').expect(200);
   });
-
-  it.each([
-    [
-      'post',
-      '/desafios',
-      {
-        nombre: 'Caminar',
-        categoria: 'SALUD',
-        fechaInicio: '2026-12-01',
-        fechaFin: '2026-12-08',
-        creador: otraPersona,
-      },
-    ],
-    [
-      'post',
-      '/participaciones',
-      { persona: otraPersona, codigoInvitacion: 'DEMOA1' },
-    ],
-    ['post', '/checkin', { persona: otraPersona, desafio }],
-    ['delete', '/checkin/ultimo', { persona: otraPersona, desafio }],
-    ['post', `/desafios/${desafio}/cancelar`, { creador: otraPersona }],
-    [
-      'post',
-      `/desafios/${desafio}/participaciones/${otraPersona}/abandonar`,
-      {},
-    ],
-    ['patch', `/personas/${otraPersona}`, { nombre: 'Otro' }],
-    ['delete', `/personas/${otraPersona}`, {}],
-    ['patch', `/desafios/${desafio}`, { nombre: 'Otro desafío' }],
-  ] as const)(
-    'rechaza suplantación o edición ajena: %s %s',
-    async (metodo, ruta, cuerpo) => {
-      await request(app.getHttpServer())
-        [metodo](ruta)
-        .set('x-usuario-id', usuario)
-        .send(cuerpo)
-        .expect(403);
-      expect(crear).not.toHaveBeenCalled();
-      expect(guardar).not.toHaveBeenCalled();
-    },
-  );
+  it('bloquea operaciones hasta elegir alias, permitiendo /me y /me/alias', async () => {
+    persona.alias = undefined;
+    await request(app.getHttpServer()).get('/me').set('Authorization', 'Bearer valido').expect(200);
+    await request(app.getHttpServer()).get('/desafios').set('Authorization', 'Bearer valido').expect(403);
+    personas.alias.mockResolvedValue({ ...persona, alias: 'nuevo' });
+    await request(app.getHttpServer()).patch('/me/alias').set('Authorization', 'Bearer valido').send({ alias: 'nuevo' }).expect(200);
+  });
+  it('rechaza actores enviados por body y deriva el actor del token', async () => {
+    for (const [ruta, datos] of [
+      ['/participaciones', { codigoInvitacion: 'DEMOA1', persona: id }],
+      ['/checkin', { desafio, persona: id }],
+    ] as const)
+      await request(app.getHttpServer()).post(ruta).set('Authorization', 'Bearer valido').send(datos).expect(400);
+    expect(unir).not.toHaveBeenCalled();
+    expect(registrar).not.toHaveBeenCalled();
+    await request(app.getHttpServer()).post('/participaciones').set('Authorization', 'Bearer valido').send({ codigoInvitacion: 'DEMOA1' }).expect(201);
+    expect(unir).toHaveBeenCalledWith({ persona: id, codigoInvitacion: 'DEMOA1' }, id);
+    await request(app.getHttpServer()).post('/checkin').set('Authorization', 'Bearer valido').send({ desafio }).expect(201);
+    expect(registrar).toHaveBeenCalledWith({ persona: id, desafio }, id);
+    await request(app.getHttpServer()).post(`/desafios/${desafio}/abandonar`).set('Authorization', 'Bearer valido').expect(201);
+    expect(abandonar).toHaveBeenCalledWith(desafio, id, id);
+  });
 });

@@ -71,12 +71,10 @@ export class PersonasService {
       throw new NotFoundException(`Persona #${id} no encontrada`);
     }
 
-    const datos = this.validar({
-      nombre: updatePersonaDto.nombre ?? actual.nombre,
-      alias: actual.alias,
-      email: actual.email,
-      zonaHoraria: updatePersonaDto.zonaHoraria ?? actual.zonaHoraria,
-    });
+    const nombre = this.campoObligatorio(updatePersonaDto.nombre ?? actual.nombre, 'nombre');
+    const zonaHoraria = updatePersonaDto.zonaHoraria ?? actual.zonaHoraria;
+    if (!esZonaHorariaValida(zonaHoraria)) throw new BadRequestException('La zona horaria no es un nombre IANA válido');
+    const datos = { nombre, zonaHoraria };
 
     try {
       const actualizada = await this.personaModelo
@@ -91,7 +89,7 @@ export class PersonasService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw this.traducirError(error, datos);
+      throw this.traducirError(error, { ...actual, ...datos });
     }
   }
 

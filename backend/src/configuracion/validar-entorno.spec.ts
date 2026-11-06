@@ -2,8 +2,8 @@ import { validarEntorno } from './validar-entorno';
 
 describe('validarEntorno', () => {
   it('acepta una URI no vacía y la recorta', () => {
-    expect(validarEntorno({ MONGODB_URI: '  mongodb://local  ' })).toEqual({
-      MONGODB_URI: 'mongodb://local',
+    expect(validarEntorno({ MONGODB_URI: '  mongodb://local  ', AUTH0_DOMAIN: 'test.auth0.com', AUTH0_AUDIENCE: 'https://racha.api' })).toEqual({
+      MONGODB_URI: 'mongodb://local', AUTH0_DOMAIN: 'test.auth0.com', AUTH0_AUDIENCE: 'https://racha.api',
     });
   });
 
