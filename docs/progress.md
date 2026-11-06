@@ -1,5 +1,8 @@
 # Estructura del proyecto
 
+Estado de entrega vigente: Partes I–III; Parte IV excluida por decisión del autor.
+Los registros cronológicos de abajo conservan decisiones y pendientes históricos.
+
 ## Backend
 
 El código de la aplicación está en `backend/`: API HTTP con NestJS 12,
@@ -413,3 +416,97 @@ arranque local, conservando el historial existente y los .env locales ignorados.
   el backend real durante esta preparación de commits; el recorrido sigue pendiente.
 - Antes de cada commit se revisó el índice: ningún .env real, coincidencia con
   secretos locales, clave privada ni JWT literal. No se crearon tags ni se publicó.
+
+## Mínimo Android requerido por Auth0 (2026-11-06)
+
+- Corrección aprobada: expo-build-properties ~58.0.12 en mobile/app.config.js
+  establece minSdkVersion 26 (Android 8.0). Dependencia y lock actualizados.
+- Expo regeneró mobile/android durante prebuild; el primer intento falló por
+  permisos y el segundo completó con permisos elevados. Directorio no versionado.
+- Gradle confirmó minSdk 26 y processDebugMainManifest pasó; el error anterior
+  de Auth0 4.3.0 quedó resuelto. TypeScript, lint y 15 pruebas móviles pasaron.
+- Dos intentos de compilación no llegaron a instalar la app: Reanimated falla
+  en buildCMakeDebug con ninja mkdir (.../CSS/common/transforms): No such file
+  or directory. Compatible con el problema documentado de rutas largas en Windows;
+  la corrección de este nuevo bloqueo queda pendiente de propuesta y aprobación.
+- Metro no inició. README actualizado sin acreditar ejecución ni login nativo.
+
+## Prueba de ruta corta en Windows (2026-11-06)
+
+- Se aprobó probar subst y limpiar únicamente cachés nativas del proyecto;
+  integrar el launcher estaba condicionado a que la compilación funcionara.
+- Ninja instalado: 1.10.2; LongPathsEnabled: 0. El directorio que Ninja no pudo
+  crear tiene 260 caracteres. La guía oficial de Reanimated pide Ninja >=1.12.
+- Se creó R: apuntando al repositorio y se limpiaron cachés nativas específicas
+  de android y módulos afectados. PowerShell necesitó el prefijo de ruta extendida
+  para completar la limpieza. No se borraron código, entornos ni cachés globales.
+- La compilación desde R: falló antes de Ninja: Expo Autolinking generó rutas
+  físicas C: para dependencias y R: para el proyecto. Codegen rechazó raíces
+  distintas. No se modificó android.mjs ni se acredita instalación/Metro.
+- Se retiró la unidad virtual de prueba. Siguiente alternativa pendiente de
+  aprobación: actualizar el Ninja usado por CMake, conservando la ruta física.
+
+## Actualización de Ninja (2026-11-06)
+
+- Actualización autorizada de la herramienta compartida del SDK: Ninja 1.13.2
+  descargado de ninja-build/ninja, release oficial v1.13.2. SHA256 del ZIP
+  comparado con el digest publicado por GitHub antes de reemplazar el ejecutable.
+- Reemplazado solo Android/Sdk/cmake/3.22.1/bin/ninja.exe; original conservado
+  al lado como ninja.exe.backup-20261106-125838. --version confirmó 1.13.2.
+- Cachés nativas específicas limpiadas de nuevo para retirar rutas R: generadas.
+  Compilación desde C: completó Codegen pero volvió a fallar en el mkdir de
+  Reanimated con 260 caracteres. No se instaló APK ni inició Metro.
+- Actualizar Ninja no bastó. LongPathsEnabled sigue en 0; habilitar rutas largas
+  del sistema requiere aprobación adicional y puede requerir reinicio.
+
+## Soporte web con Auth0 (2026-11-06)
+
+- El programador rechazó cambiar el registro de Windows y aprobó soporte web:
+  login SPA, React Native Web, fechas HTML, CORS y un comando de arranque.
+- Instalados @auth0/auth0-spa-js 2.30.0 y React Native Web compatible con Expo.
+  credenciales.web.ts conserva la interfaz nativa: Google por popup, tokens en
+  memoria, renovación coordinada y logout. No se guarda token en almacenamiento
+  común. Recuperar sesión al recargar depende de la cookie de Auth0 y del navegador.
+- EXPO_PUBLIC_AUTH0_WEB_CLIENT_ID identifica una SPA separada. Dominio y audience
+  siguen compartidos con Native/backend. Variables y pasos del dashboard en README
+  y .env.example; no se modificaron los .env reales ni recursos de Auth0.
+- npm run web inicia Expo web en 8081 con API/WS localhost:3000 por defecto;
+  EXPO_PUBLIC_WEB_API_URL/WEB_WS_URL permiten cambiarlos sin afectar Android.
+- WEB_ORIGIN permite un único origen (localhost:8081 por defecto) en HTTP y
+  Socket.IO. Sigue siendo obligatoria la autenticación Bearer/handshake existente.
+  validarEntorno conserva esta variable al cargar .env y rechaza rutas/credenciales;
+  sus 4 pruebas pasaron. Build backend y lint repetidos tras ese ajuste: correctos.
+- SelectorFecha separa calendario nativo y HTML. Confirmaciones con window.confirm
+  en navegador para no bloquear cancelar/abandonar/deshacer por Alert no soportado.
+- Verificado: build backend, TypeScript, lint, 18 pruebas móviles y 19 e2e backend.
+  Nuevas pruebas cubren concurrencia/logout web, preflight Bearer/origen rechazado
+  y handshake Socket.IO por polling con token. Exportación web correcta.
+- Chrome headless renderizó localhost:8081 y mostró el error explicado por falta
+  del Client ID SPA. Había otro Metro activo en 8081: el launcher no lo reemplazó
+  ni se detuvo ese proceso. El arranque propio debe repetirse con el puerto libre.
+- Pendiente externo: crear/configurar la SPA en Auth0 y completar el Client ID;
+  Google real, flujo completo y dos cuentas no se verificaron. El bloqueo Android
+  sigue pendiente y no se habilitó LongPathsEnabled.
+
+## Preparación de entrega I–III (2026-11-06)
+
+- Alcance aprobado: actualizar documentación y estructura; Parte IV no se realiza.
+  compatibilidad.md conserva la matriz sin respuestas inventadas; tracking-plan.md
+  declara ausencia de analítica; postmortem.md resume hechos y límites de I–III.
+- El autor creó rachas-web como SPA. Se diagnosticó el Client ID anterior y se
+  indicaron Allowed Web Origins; después reportó resuelto CORS al reiniciar backend.
+  No se infiere de ese reporte un recorrido Google completo ni con dos cuentas.
+- README conserva pasos de arranque, endpoints, justificaciones, eventos y pruebas;
+  diferencia Android Parte II/Expo Go, bloqueo nativo III y smoke test web.
+- Verificación final: build backend, TypeScript y lint correctos; 18 pruebas móviles
+  y 19 e2e backend correctos; JSON Postman válido; documentación bajo 600 líneas.
+- Commits nuevos en inglés con gitmoji, sin reescribir los anteriores:
+  96d3de7 ajusta Android; 3782c81 incorpora web; el siguiente cierra documentación.
+- Cortes aprobados para tags anotados locales: parte-1 en f8e2914, parte-2 en
+  d2aafdd y parte-3 en el commit de cierre documental. No se generan parte-4 ni
+  app-1.0.0. Los tags marcan cortes históricos, no una certificación de completitud.
+- Antes de cada commit se comparó el índice con secretos locales y se revisó el
+  historial local; no se detectaron coincidencias. No se incluyen .env reales ni
+  claves privadas. Esto no certifica secretos desconocidos o referencias del remoto.
+- No se publica, no se hace push ni envío a WebCampus. Pendientes reales: pruebas
+  nativas III, Google con dos sesiones, permisos remotos y plazo de la actividad.

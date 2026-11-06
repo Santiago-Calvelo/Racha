@@ -2,6 +2,7 @@
 
 Backend NestJS, MongoDB Atlas y app React Native con TypeScript (Expo SDK 58).
 Los comandos se ejecutan desde la raíz. Parte III usa Auth0 con Google y Socket.IO.
+Entrega limitada a Partes I–III por decisión del autor. Parte IV no realizada.
 
 ## Instalación y entorno
 
@@ -9,6 +10,8 @@ Los comandos se ejecutan desde la raíz. Parte III usa Auth0 con Google y Socket
 - MongoDB Atlas con la IP del backend permitida y permisos de escritura/índices.
 - Tenant Auth0, aplicación **Native** y una API personalizada con firma **RS256**.
 - Android con un development build. El SDK de Auth0 **no funciona en Expo Go**.
+- Android mínimo: 8.0 (API 26), requerido por el SDK nativo de Auth0.
+- Para navegador: una aplicación Auth0 **Single Page Application** separada.
 
 ```powershell
 npm run setup
@@ -142,12 +145,48 @@ cerrar la sesión web de Auth0; no borra la cuenta Google ni los datos de la per
 
 ## Autenticación y contratos HTTP
 
+### Uso en navegador
+
+Crear una aplicación **Single Page Application** en el mismo tenant Auth0:
+
+1. Habilitar la conexión Google para esa aplicación.
+2. Configurar **Allowed Callback URLs**, **Allowed Logout URLs**,
+   **Allowed Web Origins** y **Allowed Origins (CORS)** con `http://localhost:8081`.
+3. Habilitar Refresh Token Rotation y el grant Refresh Token en la SPA.
+   La API debe tener Allow Offline Access habilitado.
+4. Agregar a `mobile/.env` `EXPO_PUBLIC_AUTH0_WEB_CLIENT_ID` con el Client ID de
+   la SPA. Conservar DOMAIN y AUDIENCE del tenant/API existentes. No usar Client Secret.
+5. Opcionalmente configurar `EXPO_PUBLIC_WEB_API_URL` y `EXPO_PUBLIC_WEB_WS_URL`;
+   por defecto ambas usan `http://localhost:3000`. No se usa la IP del emulador.
+   El backend admite `WEB_ORIGIN` (por defecto `http://localhost:8081`) para CORS.
+
+Desde la raíz, en dos terminales:
+
+```powershell
+npm run start
+```
+
+```powershell
+npm run web
+```
+
+Abrir `http://localhost:8081` y permitir la ventana emergente de Google/Auth0.
+Detener cualquier Metro previo que esté ocupando ese puerto antes de arrancar.
+La web usa Auth0 SPA SDK con Authorization Code + PKCE, tokens en memoria y
+renovación coordinada ante 401. No guarda tokens en localStorage ni AsyncStorage.
+Al recargar intenta recuperar la sesión con la cookie de Auth0; si el navegador
+bloquea cookies de terceros puede pedir ingreso nuevamente. Esto no reemplaza
+el almacenamiento seguro del dispositivo exigido para la entrega nativa.
+El selector de fechas usa el calendario HTML y las confirmaciones usan el diálogo
+del navegador. En producción se requiere HTTPS y configurar el origen real.
+Ver [documentación del SDK SPA](https://auth0.com/docs/libraries/auth0-single-page-app-sdk).
+
 `mobile/src/api/cliente.ts` es el único transporte HTTP de la app. Todas las
 llamadas llevan `Authorization: Bearer <access-token>`. El SDK guarda credenciales
 con Keychain/almacenamiento cifrado de Android, sin AsyncStorage. Renueva al vencer
 y, ante 401, fuerza una renovación coordinada y reintenta **una vez**. Si falla,
 limpia la sesión y vuelve al ingreso. Una caída de red sin 401 conserva la sesión.
-La implementación de login seguro está orientada a Android/iOS, no al navegador.
+En navegador, `credenciales.web.ts` provee la misma interfaz de sesión con el SDK SPA.
 
 El guard global comprueba firma RS256, emisor, audiencia y vencimiento con JWKS.
 Token ausente/inválido/vencido: 401. Actualmente no hay rutas HTTP públicas;
@@ -344,10 +383,22 @@ criterio determinista. El proceso es repetible y no elimina registros.
 
 ### Plataformas verificadas
 
+Web (Parte III): bundle Expo generado, render en Chrome headless y mensaje de
+configuración faltante comprobados. TypeScript, lint, 18 pruebas móviles y 19 e2e
+backend correctos; incluyen CORS HTTP y handshake Socket.IO por polling con token.
+Google real, recuperación tras recargar y recorrido con dos cuentas en navegador
+no fueron verificados por el agente. El autor configuró la SPA y reportó resuelto
+el preflight CORS tras reiniciar el backend; no se acredita un recorrido completo.
+
 Parte III: compilación backend, TypeScript móvil, lint, pruebas de JWT/HTTP y
 Socket.IO de loopback, y exportación Android/Hermes con dominio de ejemplo.
-No se completó todavía el recorrido nativo de Google con dos cuentas: el último
-intento local completó prebuild y se detuvo al no encontrar el emulador en `Path`.
+No se completó todavía el recorrido nativo de Google con dos cuentas. El último
+intento detectó el emulador API 36 y superó el merge del manifiesto con minSdk 26,
+pero falló al compilar Reanimated con Ninja (`mkdir: No such file or directory`).
+La prueba posterior con una unidad virtual corta también falló: Autolinking
+mezcló rutas de C: y de la unidad virtual y Codegen rechazó raíces distintas.
+Actualizar el Ninja local a 1.13.2 tampoco resolvió el fallo de rutas largas;
+Windows todavía tiene LongPathsEnabled deshabilitado. El build nativo sigue bloqueado.
 Eso no acredita instalación ni ejecución del development build. El historial y los
 resultados concretos están en [docs/progress.md](docs/progress.md).
 
@@ -476,20 +527,25 @@ rachas/
 ├── mobile/
 │   └── .env.example
 ├── docs/
+│   ├── compatibilidad.md
+│   ├── tracking-plan.md
+│   ├── postmortem.md
 │   └── progress.md
 ├── rachas.postman_collection.json
 └── README.md
 ```
 
-`docs/compatibilidad.md`, `docs/tracking-plan.md` y `docs/postmortem.md` quedan
-pendientes de Parte IV; no se crean documentos vacíos ni se declaran terminados.
-También quedan pendientes las funciones de versionado mínimo/recomendado y sunset.
+Los tres documentos requeridos están presentes: [compatibilidad](docs/compatibilidad.md),
+[tracking plan](docs/tracking-plan.md) y [postmortem](docs/postmortem.md).
+Declaran su alcance real: Parte IV no realizada. Su presencia cumple la estructura,
+pero no acredita versionado, telemetría, distribución ni cumplimiento de Parte IV.
 
-La consigna exige tags `parte-1`, `parte-2`, `parte-3`, `parte-4` y `app-1.0.0`
-para la versión final de Parte IV, cada uno sobre su commit correspondiente.
-Todavía no se crearon tags locales: primero hay que comprobar qué commit representa
-cada entrega y completar la verificación real de Parte III. No se reescribe el
-historial publicado ni se usa force push para preparar la entrega.
+Tags anotados de los cortes históricos: `parte-1` en `f8e2914`, `parte-2` en
+`d2aafdd` y `parte-3` en el commit final de documentación de esta entrega.
+Los tags identifican cortes de código; no certifican pruebas pendientes. Los cortes
+antiguos conservan su documentación original. No se crean `parte-4` ni `app-1.0.0`;
+el campo package.version 1.0.0 existente no representa una entrega de Parte IV.
+No se reescribe historial ni se usa force push. Commits y tags se preparan localmente.
 
 Antes de cada commit revisar archivos nuevos/staged e historial por posibles
 secretos, incluidos tokens en exports de Postman. Si una credencial real ya fue
