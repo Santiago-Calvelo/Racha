@@ -15,6 +15,8 @@ Mongoose dentro de `entities/`:
 | `desafios` | Creación, consulta, edición y cancelación de retos | `/desafios` |
 | `participaciones` | Unión por código, abandono y participantes activos | `/participaciones` y `/desafios/:desafioId/participaciones` |
 | `checkin` | Checkin diario, deshacer y consulta por desafío | `/checkin` |
+| `auth` | JWT Auth0, identidad externa, perfil propio y alias | `/me` |
+| `tiempo-real` | Socket.IO, salas, eventos y alientos efímeros | `/socket.io` |
 
 `src/comun/` contiene constantes, funciones de fechas y validación de zonas
 horarias compartidas. `src/configuracion/` valida el entorno y centraliza
@@ -25,16 +27,17 @@ la conexión a la base de datos.
 - MongoDB mediante `@nestjs/mongoose` y `mongoose`, con las colecciones
   `personas`, `desafios`, `participaciones` y `registros_cumplimiento`.
 - `MONGODB_URI` es obligatoria. `ConfigModule` carga la configuración y
-  `BaseDatosModule` establece la conexión. El único `.env` y su plantilla
-  `.env.example` están en la raíz, compartidos con la app móvil.
+  `BaseDatosModule` establece la conexión. Desde la adecuación de entrega,
+  backend y mobile tienen `.env` y `.env.example` propios dentro de sus carpetas.
+  Los antecedentes con entorno raíz se conservan abajo como historial.
 - Las relaciones se guardan como referencias; los esquemas definen los
   índices únicos. Los DTOs usan `class-validator` y `ValidationPipe` global;
   los servicios conservan las reglas de negocio y Mongoose valida los documentos.
 - La API expone `id` como texto y omite `_id` y `__v` mediante un interceptor
   global. MongoDB, los servicios y sus pruebas conservan `_id` internamente.
-- Alias y email se normalizan a minúsculas en el servicio y el esquema;
-  cada campo tiene un índice único. Es el comportamiento implementado y
-  cubierto por las pruebas existentes.
+- Alias y email se normalizan a minúsculas. En Parte III el alias usa un índice
+  único parcial y el email conserva unicidad solo para personas antiguas sin
+  emisor. La identidad Auth0 es única por `emisor`/`sujeto`, sin enlace por email.
 - La zona horaria por defecto y la referencia del estado global de los
   desafíos es `America/Argentina/Buenos_Aires`. La zona de cada persona
   determina el día de sus checkins, guardado como `YYYY-MM-DD`.
@@ -66,6 +69,7 @@ está en [README.md](../README.md#arquitectura-de-datos-mongodb-atlas).
   `GET /checkin/desafio/:desafioId/persona/:personaId` filtra los check-ins.
 - Las pruebas unitarias están junto al código (`*.spec.ts`). Los e2e en
   `test/` verifican HTTP, validación y serialización con servicios simulados.
+  Desde Parte III también hay conexiones Socket.IO reales de loopback.
   El seed se prueba con almacenamiento simulado y validación Mongoose real;
   estas pruebas no verifican una conexión real ni los índices desplegados.
 - Para certificar todas las reglas de B falta el texto completo de la sección 2
@@ -276,3 +280,115 @@ Verificaciones ejecutadas:
 
 Documento de propuesta retirado por solicitud explícita. No se agregaron
 notificaciones, categorías, unidades ni métricas ficticias del mockup.
+
+## Parte III: Auth0, Socket.IO y alientos (2026-11-06)
+
+Alcance aprobado explícitamente: Auth0/Google con SDK nativo y development build,
+JWT global, identidad externa sin enlace automático con personas antiguas,
+alias posterior, renovación con un reintento, salas/eventos y alientos efímeros.
+El programador completará el `.env` real; la plantilla no contiene secretos.
+
+- `auth/`: verifica RS256/JWKS, emisor, audiencia, firma, exp/iat/sub; ausencia,
+  token inválido o vencido responden 401. `UsuarioGuard` es global, el decorador
+  `Publica` está disponible y no se utiliza en las rutas actuales.
+- `GET /me`, `PATCH /me` y `PATCH /me/alias`. El primer pedido resuelve la persona
+  con userinfo del mismo sujeto; upsert por emisor/sub soporta primeros ingresos
+  concurrentes. Alias normalizado, único y elegido una vez; conflicto 409.
+- Se retiraron header provisional, selección de personas y actores HTTP del
+  cuerpo/ruta de escritura. Los DTO HTTP omiten actor y los servicios internos
+  reciben el ID derivado del token. Las rutas por persona conservadas son lecturas.
+- MongoDB conserva documentos antiguos. Alias opcional con índice parcial;
+  email único solo entre antiguos sin emisor. `IndicesAuthService` prepara los
+  índices antes del seed/HTTP, también en el seed manual. `autoIndex: false`
+  evita que Mongoose intente crear los nuevos antes de reemplazar los anteriores.
+  Esto cambia índices reales en el próximo arranque y todavía no se probó en Atlas.
+- SDK `react-native-auth0` 6.2 y Credential Manager para almacenamiento seguro,
+  sin AsyncStorage. Refresh coordinado entre HTTP/socket; un 401 reintenta una vez,
+  y un fallo de renovación borra sesión. Logout espera renovaciones pendientes
+  para evitar que el SDK vuelva a persistir una credencial tras cerrar sesión.
+- App: Google, completar alias, cierre de sesión y protección de rutas. El perfil
+  permite editar nombre/zona horaria aunque el proveedor no entregue email.
+- Socket.IO: handshake autenticado, expiración de conexión, salas de participantes
+  activos, salida al perder foco, reconexión al volver del segundo plano,
+  resuscripción y consulta real. Eventos después de resolver escrituras; avisos
+  breves y recarga de ranking/progreso/historial. Catálogo completo en README.
+- Alientos 👏 💪 🔥 🎉 ❤️ entre participantes activos distintos, límite compartido
+  por persona/desafío de diez segundos y errores por acknowledgement. Sin MongoDB,
+  historial ni reenvío. Salas y límite en memoria para un único proceso.
+- Expo: configuración nativa dinámica desde variables públicas, scheme `racha`,
+  identificador `com.racha.app`, perfil EAS development y arranque `--dev-client`.
+  Se fijó react-dom 19.3.0 a la misma versión de React para resolver el conflicto
+  de instalación preexistente. Dependencias y lockfiles actualizados.
+- README y recorrido HTTP actualizados para dos access tokens reales. REST Client
+  los toma del entorno de VS Code; no se incluyen valores en archivos versionados.
+
+Verificación actual:
+
+- Backend compilado; 84 pruebas unitarias y 16 e2e correctas. Incluyen validación
+  criptográfica real con claves de prueba, permisos HTTP, contratos sin actor,
+  vinculación/alias e índices con repositorios controlados; también handshake,
+  salas, reconexión y alientos con servidor/cliente Socket.IO reales de loopback.
+- 14 pruebas móviles correctas con transportes/SDK/ciclo de foco controlados:
+  Bearer, reintento único, renovación concurrente, cierre durante renovación,
+  reconexión, resuscripción y actualización del detalle. No son renderizado nativo.
+- TypeScript móvil, lint sin advertencias y diff sin errores de espacios correctos.
+  Archivos modificados/nuevos dentro del límite de 600 líneas (lockfiles son datos).
+- Exportación Android/Hermes correcta; exportación con dominio
+  público de ejemplo, sin credenciales reales. La exportación no compila un APK.
+- Instalación informó 31 vulnerabilidades en backend y 11 en móvil; no se ejecutó
+  audit fix ni se cambiaron dependencias fuera del alcance. Node local 24.9.0;
+  el proyecto recomienda 24.15 o posterior compatible.
+
+Pendiente de configuración del programador: tenant Native/API RS256, Google,
+callbacks/logout, offline access y refresh token rotation, y completar variables.
+No se probó login real, almacenamiento nativo, renovación contra Auth0, migración
+contra Atlas ni recorrido de dos cuentas en un development build. Las pruebas
+Android/Expo Go de Parte II son históricas y no certifican esta Parte III.
+iOS sigue sin dispositivo/simulador disponible. No se desplegó ni se creó un
+build remoto: requiere la configuración y cuenta Expo del programador.
+
+## Adecuación del formato de entrega (2026-11-06)
+
+Alcance aprobado: entornos por aplicación, URL opcional de WebSockets, tabla HTTP
+completa y colección Postman. No incluye commits/tags ni documentos de Parte IV.
+
+- Se retiró `.env.example` raíz y se crearon `backend/.env.example` y
+  `mobile/.env.example`. La plantilla backend documenta Auth0 y reserva las tres
+  variables de versión/sunset de Parte IV, marcadas expresamente sin implementar.
+- `AppModule` y seed cargan `backend/.env` desde fuente y compilados. Los scripts
+  de Expo cargan `mobile/.env`; la configuración nativa indica esa ubicación.
+- Se conservó `backend/.env` sin modificar. Se creó el entorno móvil con las
+  variables EXPO_PUBLIC ya existentes, sin copiar URI de Atlas ni secretos.
+  Faltaba EXPO_PUBLIC_API_URL: se inicializó para el emulador Android con
+  10.0.2.2 y el puerto configurado del backend. WS queda vacío y usa ese respaldo.
+- El cliente admite EXPO_PUBLIC_WS_URL; solo Socket.IO la consume. API HTTP
+  conserva su URL independiente. Pruebas verifican ambas configuraciones.
+- README con los 22 endpoints (verbo/ruta/función/éxito/errores), instalación con
+  entornos separados, arranque, build local/EAS, catálogo y estado real de pruebas.
+- `rachas.postman_collection.json`: Collection v2.1, 32 pedidos ordenados para dos
+  identidades; captura IDs/código, calcula fechas, crea un reto programado y lo
+  adelanta a hoy para check-ins. Comprueba métricas, errores y cierre; conserva
+  los datos creados. tokenAna/tokenBruno se ingresan en un entorno privado de
+  Postman, no se almacenan en la colección versionada.
+- Las secciones históricas de esta memoria con entorno raíz describen etapas
+  anteriores. La configuración vigente es la de esta adecuación.
+
+Verificaciones:
+
+- Backend compilado; 84 unitarias, 16 e2e y 15 pruebas móviles correctas.
+  TypeScript móvil y lint correctos. No se instalaron dependencias nuevas.
+- Coincidencia comprobada entre los 22 endpoints extraídos de los controladores,
+  la tabla README y los pedidos Postman. JSON y 33 scripts comprobados localmente;
+  39 aserciones ejecutadas con respuestas controladas. Cero pedidos reales enviados.
+  Esto no certifica importación en Postman ni una ejecución contra Auth0/Atlas.
+- Resolución de backend/.env verificada desde fuente y dist; scripts móviles con
+  entorno propio. Variables públicas locales conservadas y configuración requerida
+  presente. Los dos .env reales siguen ignorados por Git.
+- Diff sin errores de espacios; README, memoria y colección bajo 600 líneas.
+  No hubo coincidencias con secretos locales en los archivos destinados a Git
+  ni en los 350 objetos revisados del historial local alcanzable. La comprobación
+  no cubre secretos desconocidos ni referencias exclusivas del remoto.
+
+Pendientes: verificación real de Parte III en el development build, selección de
+commits y creación de tags de entrega; Parte IV y sus tres documentos/versionado.
+No se reescribió historial, no se publicó ni se hizo un envío a WebCampus.

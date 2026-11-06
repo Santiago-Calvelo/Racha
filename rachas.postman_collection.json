@@ -1,0 +1,367 @@
+{
+  "info": {"_postman_id": "bc672d83-19fa-4254-9b0f-d1342be68a80", "name": "Rachas · Partes I–III", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json", "description": "Ejecutar las carpetas en orden con dos cuentas Auth0 distintas. Definir tokenAna y tokenBruno como variables locales de un entorno privado (access tokens para la API, nunca ID tokens). No exportar secretos. Captura IDs/código automáticamente, crea un desafío, lo activa y comprueba estados. Conserva personas/participaciones y desafío cancelado al finalizar. Puede modificar el nombre/zona de Ana. Cada ejecución crea un desafío adicional; si se interrumpe, revisar el límite de 5 vigentes antes de repetir. No valida Socket.IO ni hace login social: ver catálogo y pruebas en README."},
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]},
+  "variable": [{"key": "baseUrl", "value": "http://localhost:3000", "type": "string"}, {"key": "personaAnaId", "value": "", "type": "string"}, {"key": "personaBrunoId", "value": "", "type": "string"}, {"key": "desafioId", "value": "", "type": "string"}, {"key": "codigoInvitacion", "value": "", "type": "string"}, {"key": "hoy", "value": "", "type": "string"}, {"key": "finActivo", "value": "", "type": "string"}, {"key": "manana", "value": "", "type": "string"}, {"key": "finProgramado", "value": "", "type": "string"}],
+  "item": [
+    {
+      "name": "01 · Identidad y perfil",
+      "item": [
+        {
+          "name": "01 · Persona Ana (crea o reconoce)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me",
+            "description": "01 · Persona Ana (crea o reconoce)",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "if (pm.response.code === 200) pm.collectionVariables.set('personaAnaId', pm.response.json().id);"]}}]
+        },
+        {
+          "name": "02 · Elegir alias Ana (una vez)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/me/alias",
+            "description": "02 · Elegir alias Ana (una vez)",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"alias\": \"ana_{{$timestamp}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Alias elegido o ya definido', function () {", "  if (pm.response.code === 200) pm.expect(pm.response.json().alias).to.be.a('string');", "  else { pm.response.to.have.status(409); pm.expect(pm.response.json().message).to.eql('El alias ya fue elegido'); }", "});"]}}]
+        },
+        {
+          "name": "03 · Persona Bruno (crea o reconoce)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me",
+            "description": "03 · Persona Bruno (crea o reconoce)",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "if (pm.response.code === 200) pm.collectionVariables.set('personaBrunoId', pm.response.json().id);"]}}]
+        },
+        {
+          "name": "04 · Elegir alias Bruno (una vez)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/me/alias",
+            "description": "04 · Elegir alias Bruno (una vez)",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"alias\": \"bruno_{{$timestamp}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Alias elegido o ya definido', function () {", "  if (pm.response.code === 200) pm.expect(pm.response.json().alias).to.be.a('string');", "  else { pm.response.to.have.status(409); pm.expect(pm.response.json().message).to.eql('El alias ya fue elegido'); }", "});"]}}]
+        },
+        {
+          "name": "05 · Editar perfil propio",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/me",
+            "description": "05 · Editar perfil propio",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"nombre\": \"Ana HTTP\",\n  \"zonaHoraria\": \"America/Argentina/Buenos_Aires\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "06 · Consultar persona por ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/personas/{{personaAnaId}}",
+            "description": "06 · Consultar persona por ID",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "07 · Saludo técnico autenticado",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/",
+            "description": "07 · Saludo técnico autenticado",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        }
+      ]
+    },
+    {
+      "name": "02 · Desafío y métricas",
+      "item": [
+        {
+          "name": "08 · Crear desafío programado",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/desafios",
+            "description": "Crea un desafío nuevo y conserva ID/código. No elimina datos previos. El siguiente pedido lo adelanta a hoy para probar check-ins.",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"nombre\": \"Caminar HTTP\",\n  \"categoria\": \"SALUD\",\n  \"fechaInicio\": \"{{manana}}\",\n  \"fechaFin\": \"{{finProgramado}}\",\n  \"maximoParticipantes\": 10\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": ["const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());", "const mover = n => { const d = new Date(hoy + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };", "pm.collectionVariables.set('hoy', hoy); pm.collectionVariables.set('finActivo', mover(6)); pm.collectionVariables.set('manana', mover(1)); pm.collectionVariables.set('finProgramado', mover(7));"]}}, {"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) { const d = pm.response.json(); pm.collectionVariables.set('desafioId', d.id); pm.collectionVariables.set('codigoInvitacion', d.codigoInvitacion); }"]}}]
+        },
+        {
+          "name": "09 · Editar fechas mientras está programado",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}",
+            "description": "09 · Editar fechas mientras está programado",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"fechaInicio\": \"{{hoy}}\",\n  \"fechaFin\": \"{{finActivo}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "10 · Explorar con filtros y paginación",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios?categoria=SALUD&estado=ACTIVO&pagina=1&limite=5",
+            "description": "10 · Explorar con filtros y paginación",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Página tipada', function () { const p = pm.response.json(); pm.expect(p.items).to.be.an('array'); ['pagina','limite','total'].forEach(k => pm.expect(p[k]).to.be.a('number')); });"]}}]
+        },
+        {
+          "name": "11 · Desafíos por persona",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/persona/{{personaAnaId}}",
+            "description": "11 · Desafíos por persona",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "12 · Detalle del desafío",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}",
+            "description": "12 · Detalle del desafío",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "13 · Unir a Bruno por código",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/participaciones",
+            "description": "13 · Unir a Bruno por código",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"codigoInvitacion\": \"{{codigoInvitacion}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', function () { pm.response.to.have.status(201); });"]}}]
+        },
+        {
+          "name": "14 · Participantes activos",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/participaciones",
+            "description": "14 · Participantes activos",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "15 · Check-in de Bruno",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/checkin",
+            "description": "15 · Check-in de Bruno",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"desafio\": \"{{desafioId}}\",\n  \"dia\": \"hoy\",\n  \"nota\": \"Caminé treinta minutos\",\n  \"valor\": 30\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', function () { pm.response.to.have.status(201); });", "pm.test('Puntos iniciales', function () { pm.expect(pm.response.json().puntos).to.eql(10); });"]}}]
+        },
+        {
+          "name": "16 · Ranking actualizado",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/ranking",
+            "description": "16 · Ranking actualizado",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Bruno encabeza el ranking', function () { const primero = pm.response.json().participantes[0]; pm.expect(primero.persona.id).to.eql(pm.collectionVariables.get('personaBrunoId')); pm.expect(primero.puntos).to.eql(10); });"]}}]
+        },
+        {
+          "name": "17 · Progreso de Bruno",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/personas/{{personaBrunoId}}/progreso",
+            "description": "17 · Progreso de Bruno",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "18 · Inicio agregado",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/personas/{{personaBrunoId}}/inicio",
+            "description": "18 · Inicio agregado",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "19 · Historial del desafío",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkin/desafio/{{desafioId}}?pagina=1&limite=5",
+            "description": "19 · Historial del desafío",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Página tipada', function () { const p = pm.response.json(); pm.expect(p.items).to.be.an('array'); ['pagina','limite','total'].forEach(k => pm.expect(p[k]).to.be.a('number')); });"]}}]
+        },
+        {
+          "name": "20 · Historial por persona",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkin/desafio/{{desafioId}}/persona/{{personaBrunoId}}?pagina=1&limite=5",
+            "description": "20 · Historial por persona",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Página tipada', function () { const p = pm.response.json(); pm.expect(p.items).to.be.an('array'); ['pagina','limite','total'].forEach(k => pm.expect(p[k]).to.be.a('number')); });"]}}]
+        },
+        {
+          "name": "21 · Resultados finalizados",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/personas/{{personaBrunoId}}/resultados?pagina=1&limite=5",
+            "description": "21 · Resultados finalizados",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Página tipada', function () { const p = pm.response.json(); pm.expect(p.items).to.be.an('array'); ['pagina','limite','total'].forEach(k => pm.expect(p[k]).to.be.a('number')); });"]}}]
+        }
+      ]
+    },
+    {
+      "name": "03 · Errores esperados",
+      "item": [
+        {
+          "name": "22 · Rechazar check-in duplicado",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/checkin",
+            "description": "22 · Rechazar check-in duplicado",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"desafio\": \"{{desafioId}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"]}}]
+        },
+        {
+          "name": "23 · Rechazar cancelación ajena",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/cancelar",
+            "description": "23 · Rechazar cancelación ajena",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"]}}]
+        },
+        {
+          "name": "24 · Rechazar actor enviado en cuerpo",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/checkin",
+            "description": "24 · Rechazar actor enviado en cuerpo",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"desafio\": \"{{desafioId}}\",\n  \"persona\": \"{{personaAnaId}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]}}]
+        },
+        {
+          "name": "25 · Rechazar ID inválido",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios/id-invalido",
+            "description": "25 · Rechazar ID inválido",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]}}]
+        },
+        {
+          "name": "26 · Rechazar página cero",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/desafios?pagina=0",
+            "description": "26 · Rechazar página cero",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]}}]
+        },
+        {
+          "name": "27 · Rechazar ausencia de token",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me",
+            "description": "27 · Rechazar ausencia de token",
+            "auth": {"type": "noauth"}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"]}}]
+        },
+        {
+          "name": "28 · Rechazar token inválido",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me",
+            "description": "28 · Rechazar token inválido",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "token-invalido-de-prueba", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"]}}]
+        }
+      ]
+    },
+    {
+      "name": "04 · Deshacer y cerrar",
+      "item": [
+        {
+          "name": "29 · Deshacer check-in de Bruno",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/checkin/ultimo",
+            "description": "29 · Deshacer check-in de Bruno",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"desafio\": \"{{desafioId}}\"\n}", "options": {"raw": {"language": "json"}}}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]}}]
+        },
+        {
+          "name": "30 · Comprobar historial vacío",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/checkin/desafio/{{desafioId}}/persona/{{personaBrunoId}}",
+            "description": "30 · Comprobar historial vacío",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });", "pm.test('Sin registros después de deshacer', function () { pm.expect(pm.response.json().items).to.have.lengthOf(0); });"]}}]
+        },
+        {
+          "name": "31 · Abandonar con Bruno",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/abandonar",
+            "description": "31 · Abandonar con Bruno",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenBruno}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', function () { pm.response.to.have.status(201); });"]}}]
+        },
+        {
+          "name": "32 · Cancelar como creadora",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/desafios/{{desafioId}}/cancelar",
+            "description": "32 · Cancelar como creadora",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{tokenAna}}", "type": "string"}]}
+          },
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', function () { pm.response.to.have.status(201); });"]}}]
+        }
+      ]
+    }
+  ]
+}
