@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import SelectorFecha from '../components/SelectorFecha';
 import { router } from 'expo-router';
 import { crearDesafio } from '../api/desafios';
 import type { CategoriaDesafio } from '../api/tipos';
@@ -96,21 +96,7 @@ export default function CrearDesafio() {
         <ErrorTexto texto={errores.fechaInicio ?? null} />
       </View>
       {calendario && (
-        <DateTimePicker
-          value={new Date(`${inicio}T12:00:00`)}
-          mode="date"
-          onChange={(evento, valor) => {
-            setCalendario(false);
-            if (evento.type === 'set' && valor)
-              setInicio(
-                new Intl.DateTimeFormat('en-CA', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                }).format(valor),
-              );
-          }}
-        />
+        <SelectorFecha valor={inicio} cambiar={setInicio} cerrar={() => setCalendario(false)} />
       )}
       <Campo
         etiqueta="Duración (3 a 90 días)"

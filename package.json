@@ -8,6 +8,7 @@
     "start": "npm --prefix backend run start",
     "mobile": "npm --prefix mobile run start --",
     "android": "npm --prefix mobile run android --",
+    "web": "npm --prefix mobile run web --",
     "seed": "npm --prefix backend run seed",
     "build": "npm --prefix backend run build",
     "test": "npm --prefix backend test -- --runInBand",

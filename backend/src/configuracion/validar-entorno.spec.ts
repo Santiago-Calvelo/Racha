@@ -1,6 +1,11 @@
 import { validarEntorno } from './validar-entorno';
 
 describe('validarEntorno', () => {
+  it('conserva y normaliza WEB_ORIGIN para cargarlo desde .env y rechaza rutas', () => {
+    const base = { MONGODB_URI: 'mongodb://local', AUTH0_DOMAIN: 'test.auth0.com', AUTH0_AUDIENCE: 'https://racha.api' };
+    expect(validarEntorno({ ...base, WEB_ORIGIN: 'https://racha.example/' }).WEB_ORIGIN).toBe('https://racha.example');
+    expect(() => validarEntorno({ ...base, WEB_ORIGIN: 'https://racha.example/ruta' })).toThrow('WEB_ORIGIN');
+  });
   it('acepta una URI no vacía y la recorta', () => {
     expect(validarEntorno({ MONGODB_URI: '  mongodb://local  ', AUTH0_DOMAIN: 'test.auth0.com', AUTH0_AUDIENCE: 'https://racha.api' })).toEqual({
       MONGODB_URI: 'mongodb://local', AUTH0_DOMAIN: 'test.auth0.com', AUTH0_AUDIENCE: 'https://racha.api',

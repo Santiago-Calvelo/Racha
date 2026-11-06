@@ -4,8 +4,9 @@ import type { Server, Socket } from 'socket.io';
 import { TokenService } from '../auth/token.service';
 import { PersonaAuthService } from '../auth/persona-auth.service';
 import { TiempoRealService } from './tiempo-real.service';
+import { origenWebPermitido } from '../configuracion/cors';
 
-@WebSocketGateway({ maxHttpBufferSize: 4096 })
+@WebSocketGateway({ maxHttpBufferSize: 4096, cors: { origin: origenWebPermitido } })
 export class TiempoRealGateway implements OnGatewayInit {
   constructor(private readonly tokens: TokenService, private readonly personas: PersonaAuthService, private readonly tiempo: TiempoRealService) {}
   afterInit(servidor: Server) {

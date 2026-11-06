@@ -93,4 +93,21 @@ describe('Socket.IO real: handshake, salas y alientos', () => {
     activos.delete(bruno);
     expect((await pedido(b, 'aliento.enviar', { desafioId, destinatarioId: ana, emoji: '👏' })).ok).toBe(false);
   });
+  it('permite el transporte polling del navegador con CORS y token', async () => {
+    const origen = process.env.WEB_ORIGIN?.trim() || 'http://localhost:8081';
+    const respuesta = await fetch(`${url}/socket.io/?EIO=4&transport=polling`, {
+      method: 'OPTIONS', headers: { Origin: origen, 'Access-Control-Request-Method': 'POST' },
+    });
+    expect(respuesta.headers.get('access-control-allow-origin')).toBe(origen);
+    const abrir = await fetch(`${url}/socket.io/?EIO=4&transport=polling`);
+    const sid = JSON.parse((await abrir.text()).slice(1)).sid as string;
+    const canal = `${url}/socket.io/?EIO=4&transport=polling&sid=${encodeURIComponent(sid)}`;
+    const enviar = (body: string) => fetch(canal, { method: 'POST', body,
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8', Origin: origen } });
+    try {
+      await enviar(`40${JSON.stringify({ token: ana })}`);
+      const conectadoPolling = await fetch(canal);
+      expect(await conectadoPolling.text()).toMatch(/^40\{"sid":/);
+    } finally { await enviar('1'); }
+  });
 });

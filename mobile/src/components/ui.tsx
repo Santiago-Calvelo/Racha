@@ -2,6 +2,7 @@ import type { PropsWithChildren, ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -391,6 +392,10 @@ export function Metricas({ datos }: { datos: TipoMetricas }) {
   );
 }
 export function confirmar(titulo: string, texto: string, accion: () => void) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${titulo}\n\n${texto}`)) accion();
+    return;
+  }
   Alert.alert(titulo, texto, [
     { text: 'Volver', style: 'cancel' },
     { text: 'Confirmar', style: 'destructive', onPress: accion },
